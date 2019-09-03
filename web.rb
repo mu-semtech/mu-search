@@ -73,21 +73,6 @@ def configure_settings client, is_reload = nil
         end
       ]
 
-  if !client.up
-    log.info "Waiting for ES"
-    while !client.up do
-      log.info "."
-      sleep 1
-    end
-  end
-  if !sparql_up
-    log.info "Waiting for SPARQL endpoint"
-    while !sparql_up do
-      log.info "."
-      sleep 1
-    end
-  end
-
   if settings.persist_indexes
     log.info "Loading persisted indexes"
     load_persisted_indexes configuration["types"]
@@ -140,6 +125,14 @@ configure do
   while !client.up
     log.info "...waiting for elasticsearch..."
     sleep 1
+  end
+
+  if !sparql_up
+    log.info "Waiting for SPARQL endpoint"
+    while !sparql_up do
+      log.info "."
+      sleep 1
+    end
   end
 
   # hardcoded pipeline names (for now)
