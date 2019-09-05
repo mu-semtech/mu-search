@@ -123,7 +123,7 @@ configure do
   # calls that go through this endpoint (rather than the one provided
   # by the mu-ruby-template seem to be mu-auth-sudo calls so it's easy
   # to replace.
-  set :db, SinatraTemplate::SPARQL::Client.new('http://db:8890/sparql', { headers: { 'mu-auth-sudo': 'true' } } )
+  set :db, SinatraTemplate::SPARQL::Client.new(ENV['MU_SPARQL_ENDPOINT'], { headers: { 'mu-auth-sudo': 'true' } } )
   while !sparql_up do
     log.info "...waiting for SPARQL endpoint..."
     sleep 1
