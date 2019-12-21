@@ -24,21 +24,30 @@ def configure_properties_types_lookup_tables configuration
             end
 
           rdf_property = settings.type_definitions[source_type][property_name]
+          if property_name == "data"
+            rdf_property = rdf_property["via"]
+          end
           rdf_property = rdf_property.is_a?(Array) ? rdf_property : [rdf_property]
-          rdf_property.each do |prop|
+          rdf_property.each_index do |index|
+            prop = rdf_property[index]
             rdf_properties[prop] =  rdf_properties[prop] || []
-            rdf_properties[prop].push type_def["type"]
+            rdf_properties[prop].push [type_def["type"], rdf_property.take(index)]
           end
         end
       end
     else
       rdf_types[type_def["rdf_type"]]  = rdf_types[type_def["rdf_type"]] || []
       rdf_types[type_def["rdf_type"]].push type_def["type"]
+      
       type_def["properties"].each do |name, rdf_property|
+        if name == "data"
+          rdf_property = rdf_property["via"]
+        end
         rdf_property = rdf_property.is_a?(Array) ? rdf_property : [rdf_property]
-        rdf_property.each do |prop|
+        rdf_property.each_index do |index|
+          prop = rdf_property[index]
           rdf_properties[prop] =  rdf_properties[prop] || []
-          rdf_properties[prop].push type_def["type"]
+          rdf_properties[prop].push [type_def["type"], rdf_property.take(index)]
         end
       end
     end
@@ -137,15 +146,28 @@ def tabulate_updates deltas
         end
       end
     else
-      possible_types = settings.rdf_properties[p]
-      if possible_types
-        possible_types.each do |type|
-          rdf_type = settings.type_definitions[type]["rdf_type"]
-
-          if is_type s, rdf_type
-            unless docs_to_update[s] == false
-              triple_types = docs_to_update[s] || Set[]
-              docs_to_update[s] = triple_types.add(type)
+      [p, "^"+p].each do |directional_p|
+        possible_types = settings.rdf_properties[directional_p]
+        if possible_types
+          possible_types.each do |type, path|
+            rdf_type = settings.type_definitions[type]["rdf_type"]
+            inverse = directional_p[0] == "^"
+            true_s = inverse ? o : s
+            if path.empty? and is_type true_s, rdf_type
+              unless docs_to_update[true_s] == false
+                triple_types = docs_to_update[true_s] || Set[]
+                docs_to_update[true_s] = triple_types.add(type)
+              end
+            elsif !path.empty?
+              subjects = type_traces_to_uri rdf_type, path, true_s
+              if subjects
+                subjects.each do |subject|
+                  unless docs_to_update[subject] == false
+                    triple_types = docs_to_update[subject] || Set[]
+                    docs_to_update[subject] = triple_types.add(type)
+                  end
+                end
+              end
             end
           end
         end
