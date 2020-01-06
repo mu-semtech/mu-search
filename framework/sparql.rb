@@ -113,26 +113,23 @@ end
 #   - s: String URI of the subject.
 #   - rdf_type: String RDF type URI.
 #
-# TODO: Use escape helpers to escape URIs.
 def is_type s, rdf_type
   @subject_types ||= {}
   if @subject_types.has_key? [s, rdf_type]
     @subject_types[s, rdf_type]
   else
-    direct_query "ASK WHERE { <#{s}> a <#{rdf_type}> }"
+    direct_query "ASK WHERE { #{sparql_escape_uri} a #{sparql_escape_uri(rdf_type)} }"
   end
 end
 
-# TODO: Use escape helpers to escape URIs.
 def type_traces_to_uri rdf_type, path, uri
   predicate_s = make_predicate_string path
   sparql_query = "
     SELECT ?s WHERE {
-     ?s a <#{rdf_type}> ;
-      #{predicate_s} <#{uri}> .
+     ?s a #{sparql_escape_uri(rdf_type)} ;
+      #{predicate_s} #{sparql_escape_uri(uri)} .
     }
   "
-  puts "running query #{sparql_query}"
   query_result = direct_query sparql_query
   if query_result
     query_result.map {|result| result["s"]}
@@ -148,14 +145,13 @@ end
 #   - rdf_type: String RDF type URI.
 #   - allowed_groups: Ruby JSON representation of the allowed_groups.
 #
-# TODO: Use escape helpers to escape URIs.
 def is_authorized s, rdf_type, allowed_groups
   @authorizations ||= {}
   if @authorizations.has_key? [s, rdf_type, allowed_groups]
     @authorizations[s, rdf_type, allowed_groups]
   else
 
-    authorized_query "ASK WHERE { <#{s}> a <#{rdf_type}> }", allowed_groups
+    authorized_query "ASK WHERE { #{sparql_escape_uri(s)} a #{sparql_escape_uri(rdf_type)} }", allowed_groups
   end
 end
 
@@ -182,9 +178,9 @@ end
 #   - predicate: Predicate to be escaped.
 def predicate_string_term predicate
   if predicate[0] == '^'
-    "^<#{predicate[1..predicate.length-1]}>"
+    "^#{sparql_escape_uri(predicate[1..predicate.length-1])}"
   else
-    "<#{predicate}>"
+    sparql_escape_uri(predicate)
   end
 end
 
@@ -200,7 +196,7 @@ end
 #     Either a string or an array.
 #
 # TODO: I believe the construction with the query paths leads to
-# incorrect invalidation when delta's arrive.  Perhaps we should store
+# incorrect invalidation when delta's arrive. Perhaps we should store
 # the relevant URIs in the stored document so we can invalidate it
 # correctly when new content arrives.
 def make_predicate_string predicate

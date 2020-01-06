@@ -49,9 +49,9 @@ end
 # would make sense to split both.
 def configure_settings client, is_reload = nil
   configuration = JSON.parse File.read('/config/config.json')
-  
+
   set :protection, :except => [:json_csrf]
-  
+
   set :master_mutex, Mutex.new
 
   set :dev, (ENV['RACK_ENV'] == 'development')
@@ -357,7 +357,8 @@ end
 #
 # TODO fleshen out functionality with respect to existing indexes
 get "/:path/search" do |path|
-  log.debug "SEARCH Got allowed groups #{request.env["HTTP_MU_AUTH_ALLOWED_GROUPS"]}"
+  groups = request.env["HTTP_MU_AUTH_ALLOWED_GROUPS"]
+  log.debug "SEARCH Got allowed groups #{groups}"
 
   content_type 'application/json'
   client = Elastic.new(host: 'elasticsearch', port: 9200)
@@ -429,7 +430,7 @@ get "/:path/search" do |path|
 
   log.debug "Got native results: #{results}"
 
-  count = 
+  count =
     if collapse_uuids
       results["aggregations"]["type_count"]["value"]
     else
@@ -520,7 +521,7 @@ delete "/settings/persist_indexes" do
 end
 
 # Health report
-# TODO Make this more descriptive - status of all indexes? 
+# TODO Make this more descriptive - status of all indexes?
 get "/health" do
   { status: "up" }.to_json
 end
