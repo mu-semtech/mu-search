@@ -1,12 +1,3 @@
-# Executes a query with specific headers set
-#
-#   - query: String SPARQL query
-#   - headers: Object containing the headers which need to be sent.
-#     Note that the object should have downcased headers with dashes
-#     in between (eg: { 'mu-auth-allowed-groups': '[]' }).
-def query_with_headers query, headers
-  sparql_client.query query, { headers: headers }
-end
 
 # Executes a query with specific allowed_groups set.
 #
@@ -18,27 +9,7 @@ end
 # how to do this in a pretty manner.  We should provide some tooling
 # and share it as an addon for the users of the mu-ruby-template.
 def authorized_query query_string, allowed_groups, retries = 6
-  begin
-    allowed_groups_object = allowed_groups.map { |group| group }.to_json
-
-    log.debug "Authorized query with allowed groups object #{allowed_groups_object}"
-
-    options = { headers: { 'mu-auth-allowed-groups': allowed_groups_object } }
-
-    my_sparql_client = SPARQL::Client.new(ENV['MU_SPARQL_ENDPOINT'], options)
-
-    my_sparql_client.query query_string, options
-  rescue
-    next_retries = retries - 1
-    if next_retries == 0
-      raise
-    else
-      log.warn "Could not execute authorized query (attempt #{6 - next_retries}): #{query_string} \n #{allowed_groups}"
-      timeout = (6 - next_retries) ** 2
-      sleep timeout
-      authorized_query query_string, allowed_groups, next_retries
-    end
-  end
+  MuSearch::SPARQL.authorized_query(query_string, allowed_groups, retries)
 end
 
 
@@ -55,23 +26,8 @@ end
 #
 #   - q: String SPARQL query to be executed
 #
-# TODO: this is now configured in the settings block.  It's not a
-# pretty way of handling this.  We should find a solid solution for
-# the mu-auth-sudo queries.
 def direct_query query_string, retries = 6
-  begin
-    settings.db.query query_string
-  rescue
-    next_retries = retries - 1
-    if next_retries == 0
-      raise
-    else
-      log.warn "Could not execute raw query (attempt #{6 - next_retries}): #{query_string}"
-      timeout = (6 - next_retries) ** 2
-      sleep timeout
-      direct_query query_string, next_retries
-    end
-  end
+  MuSearch::SPARQL.direct_query(query_string, retries)
 end
 
 # Executes a document count for documents of a particular type.
@@ -114,6 +70,9 @@ end
 #   - rdf_type: String RDF type URI.
 #
 def is_type s, rdf_type
+  if rdf_type.nil?
+    raise "type is nil"
+  end
   @subject_types ||= {}
   if @subject_types.has_key? [s, rdf_type]
     @subject_types[s, rdf_type]
@@ -177,11 +136,7 @@ end
 #
 #   - predicate: Predicate to be escaped.
 def predicate_string_term predicate
-  if predicate[0] == '^'
-    "^#{sparql_escape_uri(predicate[1..predicate.length-1])}"
-  else
-    sparql_escape_uri(predicate)
-  end
+  MuSearch::SPARQL.predicate_string_term(predicate)
 end
 
 # Coverts the SPARQL predicate definition from the config into a
@@ -200,11 +155,7 @@ end
 # the relevant URIs in the stored document so we can invalidate it
 # correctly when new content arrives.
 def make_predicate_string predicate
-  if predicate.is_a? String
-    predicate_string_term predicate
-  else
-    predicate.map { |pred| predicate_string_term pred }.join("/")
-  end
+  MuSearch::SPARQL.make_predicate_string(predicate)
 end
 
 
@@ -372,7 +323,8 @@ end
 def sparql_up
   begin
     direct_query "ASK { ?s ?p ?o }"
-  rescue
+  rescue StandardError => e
+    log.debug e
     false
   end
 end
