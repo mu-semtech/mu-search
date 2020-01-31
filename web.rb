@@ -6,6 +6,8 @@ require 'listen'
 require 'singleton'
 require 'base64'
 
+require_relative 'lib/mu_search/sparql.rb'
+require_relative 'lib/mu_search/delta_handler.rb'
 require_relative 'framework/elastic.rb'
 require_relative 'framework/sparql.rb'
 require_relative 'framework/authorization.rb'
@@ -55,7 +57,6 @@ def configure_settings client, is_reload = nil
   set :master_mutex, Mutex.new
 
   set :dev, (ENV['RACK_ENV'] == 'development')
-
   set :batch_size, parse_integer_var(ENV['BATCH_SIZE'], configuration["batch_size"]) || 100
 
   set :max_batches, parse_integer_var(ENV['MAX_BATCHES'], configuration["max_batches"])
@@ -76,6 +77,11 @@ def configure_settings client, is_reload = nil
   set :automatic_index_updates, ENV['AUTOMATIC_INDEX_UPDATES'] ?
     parse_boolean_var(ENV['AUTOMATIC_INDEX_UPDATES']) : configuration["automatic_index_updates"]
 
+  set :delta_parser, MuSearch::DeltaHandler.new({
+                                                  auto_index_updates: settings.automatic_index_updates,
+                                                  logger: SinatraTemplate::Utils.log,
+                                                  search_configuration: configuration
+                                                })
   set :attachments_path_base, ENV['ATTACHMENTS_PATH_BASE'] || configuration["attachments_path_base"] || "/data"
 
   set :type_paths, Hash[
@@ -478,22 +484,16 @@ end
 # invalidation when paths are being used to index contents.
 post "/update" do
   client = Elastic.new(host: 'elasticsearch', port: 9200)
-
-  # [[d, s, p, o], ...] where d is :- or :+ for deletes/inserts respectively
   log.debug "Received delta update #{@json_body}"
-  deltas = parse_deltas @json_body
-  # Tabulate first, to avoid duplicate updates
-  # { <uri> => [type, ...] } or { <uri> => false } if document should be deleted
-  if deltas
-    if settings.automatic_index_updates
-      docs_to_update, docs_to_delete = tabulate_updates deltas
-      docs_to_update.each { |s, types| update_document_all_types client, s, types }
-      docs_to_delete.each { |s, types| delete_document_all_types client, s, types }
-    else
-      invalidate_updates deltas
-    end
-  end
+  if settings.automatic_index_updates
+    docs_to_update, docs_to_delete =   settings.delta_parser.parse_deltas @json_body
+    log.debug "docs to update #{docs_to_update.inspect}"
 
+    docs_to_update.each { |s, types| update_document_all_types client, s, types }
+    docs_to_delete.each { |s, types| delete_document_all_types client, s, types }
+  else
+    invalidate_updates deltas
+  end
   { message: "Thanks for all the updates." }.to_json
 end
 
