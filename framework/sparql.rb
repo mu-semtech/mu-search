@@ -81,22 +81,6 @@ def is_type s, rdf_type
   end
 end
 
-def type_traces_to_uri rdf_type, path, uri
-  predicate_s = make_predicate_string path
-  sparql_query = "
-    SELECT ?s WHERE {
-     ?s a #{sparql_escape_uri(rdf_type)} ;
-      #{predicate_s} #{sparql_escape_uri(uri)} .
-    }
-  "
-  query_result = direct_query sparql_query
-  if query_result
-    query_result.map {|result| result["s"]}
-  else
-    []
-  end
-end
-
 # Memoized function which verifies whether a user with particular
 # allowed_groups can see that a uri has a particular type.
 #
