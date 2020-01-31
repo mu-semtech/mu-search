@@ -82,37 +82,6 @@ def parse_deltas raw_deltas
   end
 end
 
-# Invalidates the updates as received by the parsed delta's.
-#
-#   - deltas: Delta's as converted by #parse_deltas.
-#
-# TODO: Update the specific documents rather than invalidating the
-# full index.  It seems index invalidation makes subsequent queries
-# take a substantial amount of time (that, or something went wrong).
-#
-# TODO: Find a way to capture changes occurring in in-between objects
-# which may be found when subject paths are supplied in the
-# configuration.
-def invalidate_updates deltas
-  deltas.each do |triple|
-    delta, s, p, o = triple
-
-    if p == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-      settings.rdf_types[o].each { |type| invalidate_indexes s, type }
-    else
-      possible_types = settings.rdf_properties[p]
-      if possible_types
-        possible_types.each do |type|
-          rdf_type = settings.type_definitions[type]["rdf_type"]
-
-          if is_type s, rdf_type
-            invalidate_indexes s, type
-          end
-        end
-      end
-    end
-  end
-end
 
 # Update all documents relating to a particular uri and a series of
 # types.

@@ -485,14 +485,19 @@ end
 post "/update" do
   client = Elastic.new(host: 'elasticsearch', port: 9200)
   log.debug "Received delta update #{@json_body}"
+  docs_to_update, docs_to_delete = settings.delta_parser.parse_deltas @json_body
+  log.debug "docs to update #{docs_to_update.inspect}"
+  log.debug "docs to delete #{docs_to_delete.inspect}"
   if settings.automatic_index_updates
-    docs_to_update, docs_to_delete =   settings.delta_parser.parse_deltas @json_body
-    log.debug "docs to update #{docs_to_update.inspect}"
-
-    docs_to_update.each { |s, types| update_document_all_types client, s, types }
-    docs_to_delete.each { |s, types| delete_document_all_types client, s, types }
+    docs_to_update.each { |s, types| update_document_all_types(client, s, types)}
+    docs_to_delete.each { |s, types| delete_document_all_types(client, s, types)}
   else
-    invalidate_updates deltas
+    docs_to_delete.each do |s, types|
+      types.each { |type| invalidate_indexes(s, type) }
+    end
+    docs_to_update.each do |s, types|
+      types.each { |type| invalidate_indexes(s, type) }
+    end
   end
   { message: "Thanks for all the updates." }.to_json
 end

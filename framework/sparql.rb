@@ -63,24 +63,6 @@ SPARQL
 end
 
 
-# Memoized function which verifies whether or not a given subject uri
-# is of a particular type.
-#
-#   - s: String URI of the subject.
-#   - rdf_type: String RDF type URI.
-#
-def is_type s, rdf_type
-  if rdf_type.nil?
-    raise "type is nil"
-  end
-  @subject_types ||= {}
-  if @subject_types.has_key? [s, rdf_type]
-    @subject_types[s, rdf_type]
-  else
-    direct_query "ASK WHERE { #{sparql_escape_uri} a #{sparql_escape_uri(rdf_type)} }"
-  end
-end
-
 # Memoized function which verifies whether a user with particular
 # allowed_groups can see that a uri has a particular type.
 #
