@@ -160,9 +160,12 @@ end
 #   - s: String URI of the entity which needs changing.
 #   - types: Array of types for which the document needs updating.
 def delete_document_all_types client, s, types
+  log.debug "Will delete document #{s} for types #{types}"
   types.each do |type|
+    # TODO: this fails because the uuid is already removed, should probably use uri as id in elastic?
     uuid = get_uuid s
     if uuid
+      log.debug "deleting document #{s} with uuid #{uuid} for type #{type}"
       Settings.instance.indexes[type].each do |key, index|
         begin
           client.delete_document index[:index], uuid
