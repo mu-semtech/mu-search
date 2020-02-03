@@ -53,11 +53,10 @@ module MuSearch
         path_to_delta = MuSearch::SPARQL::make_predicate_string(path)
         properties_after_delta = path.slice(index+1, path.size)
         path_after_delta = properties_after_delta.size > 1 ? MuSearch::SPARQL::make_predicate_string(properties_after_delta) : false
-        rdf_types = [config[:config]["rdf_type"]] || config[:config]["composite_types"]
-        rdf_types_turtle = rdf_types.map{ |type| sparql_escape_uri(type) }.join(',')
         object = delta.dig("object", "type") == "uri" ? sparql_escape_uri(delta.dig("object", "value")) : delta.dig("object", "value").sparql_escape
         true_s = inverse ? object : delta.dig("subject", "value")
 
+      rdf_types_turtle = sparql_escape_uri(config.dig(:index,"rdf_type"))
         sparql_query = %(
             SELECT ?s WHERE {
             ?s a #{rdf_types_turtle} .
@@ -76,8 +75,7 @@ module MuSearch
     def query_for_path_and_delta_removal(index, delta, config, inverse)
         path = config[:rdf_properties].take(index+1) # path up to the added triple
         path_to_delta = MuSearch::SPARQL::make_predicate_string(path)
-        rdf_types = [config[:config]["rdf_type"]] || config[:config]["composite_types"]
-        rdf_types_turtle = rdf_types.map{ |type| sparql_escape_uri(type) }.join(',')
+        rdf_types_turtle = sparql_escape_uri(type)
         object = delta.dig("object", "type") == "uri" ? sparql_escape_uri(delta.dig("object", "value")) : delta.dig("object", "value").sparql_escape
         true_s = inverse ? object : delta.dig("subject", "value")
 
@@ -159,10 +157,10 @@ module MuSearch
       index_config = search_configuration["types"]
       type_map = Hash.new{ |hash, key| hash[key] = Set.new } # has a set as default value for each key
       index_config.each do |config|
-        if config.has_key?("composite_types")
-          config["composite_types"].each { |type| type_map[type].add(config) }
-      else
-        type_map[config["rdf_type"]].add(config)
+        # we assume composity types combine existing indexes.
+        # so we only need "real" indexes when parsing deltas
+        unless config.has_key?("composite_types")
+          type_map[config["rdf_type"]].add(config)
         end
       end
       type_map
@@ -173,17 +171,19 @@ module MuSearch
     def map_property_to_config(search_configuration)
       index_config = search_configuration["types"]
       property_map = Hash.new{ |hash, key| hash[key] = Set.new } # has a set as default value for each key
-      index_config.each do |config|
+      # we assume composity types combine existing indexes.
+      # so we only need "real" indexes when parsing deltas
+      index_config.reject{ |config| config.has_key?("composite_tyes")}.each do |config|
         config["properties"].each do |key, value|
           if key == "data"
             value = value["via"]
           end
           if value.kind_of?(Array)
             value.each do |property|
-              property_map[property].add({ config: config, rdf_properties: value })
+              property_map[property].add({ index: config, rdf_properties: value })
             end
           else
-            property_map[value].add({ config: config, rdf_properties: [ value ] })
+            property_map[value].add({ index: config, rdf_properties: [ value ] })
           end
         end
       end
