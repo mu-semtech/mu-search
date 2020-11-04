@@ -23,6 +23,8 @@ before do
   request.path_info.chomp!('/')
   content_type 'application/vnd.api+json'
   WEBrick::HTTPRequest.const_set("MAX_URI_LENGTH", 10240)
+  # 10240 * 100 headers
+  WEBrick::HTTPRequest.const_set("MAX_HEADER_LENGTH", 1024000)
 end
 
 
