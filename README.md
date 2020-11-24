@@ -704,6 +704,8 @@ The following sections list the flags that are currently implemented:
 - `:fuzzy:` : [Fuzzy query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-fuzzy-query.html)
 - `:gt:`,`lt:`, `:gte:`, `:lte:` : [Range query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html)
 - `:lt,gt:`, `:lte,gte:`, `:lt,gte:`, `:lte,gt:` : Combined [range query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html), range limits should be comma-separated such as: `GET /documents/search?filter[:lte,gte:importance]=3,7`
+- `:has-no:`: Ensures the supplied property doesn't have a value. Since this is a boolean filter, the supplied filter value should always be `yes`. For example `filter[:has-no:translation]=yes`. Syntax may be subject to change.
+- `has`: The inverse of `:has-no:`. Forces the property to exist. Syntax may be subject to change.
 
 ###### Full text queries
 - `:phrase:` : [Match phrase query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-query-phrase.html)
