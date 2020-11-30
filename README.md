@@ -663,7 +663,7 @@ This section describes the REST API provided by mu-search.
 In order to take access rights into account, each request requires the `MU_AUTH_ALLOWED_GROUPS` and `MU_AUTH_USED_GROUPS` headers to be present.
 
 #### GET `/:type/search`
-Endpoint to seach the given `:type` index. The request format is JSON-API compliant and intended to match the request format of [mu-cl-resources](https://github.com/mu-semtech/mu-cl-resources). Search filters are passed using query params.
+Endpoint to search the given `:type` index. The request format is JSON-API compliant and intended to match the request format of [mu-cl-resources](https://github.com/mu-semtech/mu-cl-resources). Search filters are passed using query params.
 
 A subset of the [Elasticsearch Query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html) is supported, via the `filter`, `page`, and `sort` query parameters. More complex queries should be sent via `POST /:type/search` endpoint.
 
@@ -713,6 +713,10 @@ The following sections list the flags that are currently implemented:
 - `:query:` : [Query string query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html)
 
 - `:common:` [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options).
+
+Currently searching on multiple fields is only supported for the following flag:
+- `:phrase:`
+- `:phrase_prefix:`
 
 Examples
 
@@ -798,6 +802,11 @@ All options prefixed with (*) can also be configured using an UPPERCASED variant
 
 In development mode (setting the environment variable `RACK_ENV` to `development`), the application will listen for changes in `config.json`. Any change will trigger a complete reload of the full application, including deleting existing indexes, and building any default indexes specified in eager indexing. This behaviour overrules the `persist_indexes` flag.
 
+### Environment variables
+This section gives an overview of all options that are configurable via environment variables. The options that can be configured in the `config.json` file as well are not repeated here. This list contains options that can only be configured via environment variables.
+
+- **MAX_REQUEST_URI_LENGTH** : maximum length of an incoming request URL. Defaults to 10240.
+- **MAX_REQUEST_HEADER_LENGTH** : maximum length of the headers of an incoming request. Defaults to 1024000.
 ## Discussions
 ### Why a custom Elasticsearch docker image?
 The [mu-semtech/search-elastic-backend](https://github.com/mu-semtech/mu-search-elastic-backend) is a custom Docker image based on the official Elasticsearch image. Providing a custom image allows better control on the version of Elasticsearch, currently v7.2.0, used in combination with the mu-search service.
