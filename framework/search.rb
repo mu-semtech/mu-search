@@ -158,16 +158,16 @@ def construct_es_query_term type, filter_argument, val
     end
   when 'has'
     ensuring_single_field_for 'has', fields do |field|
-      if val == 'yes'
+      if val == 't'
         { exists: { field: field }}
       else
-        log.error("The 'has'-modifier only works for value 'yes'.")
+        log.error("The 'has'-modifier only works for value 't'.")
         { }
       end
     end
   when 'has-no'
     ensuring_single_field_for 'has-no', fields do |field|
-      if val == 'yes'
+      if val == 't'
         {
           bool: {
             must_not: {
@@ -178,7 +178,7 @@ def construct_es_query_term type, filter_argument, val
           }
         }
       else
-        log.error("The 'has-no'-modifier only works for value 'yes'.")
+        log.error("The 'has-no'-modifier only works for value 't'.")
         { }
       end
     end
