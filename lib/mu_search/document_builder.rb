@@ -34,7 +34,6 @@ module MuSearch
         else
           index_value = build_simple_property(prop_values)
         end
-
         [key, denumerate(index_value)]
       end
 
