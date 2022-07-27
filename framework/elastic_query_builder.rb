@@ -143,7 +143,12 @@ class ElasticQueryBuilder
       {
         multi_match: { query: value, type: flag, fields: multi_match_fields }.compact
       }
-    when "term", "fuzzy", "prefix", "wildcard", "regexp"
+    when "fuzzy"
+      multi_match_fields = fields == ["_all"] ? '*.*' : fields
+      {
+        multi_match: { query: value, fields: multi_match_fields, fuzziness: "AUTO" }.compact
+      }
+    when "term", "prefix", "wildcard", "regexp"
       ensure_single_field_for flag, fields do |field|
         {
           flag => { field => value }
@@ -153,14 +158,6 @@ class ElasticQueryBuilder
       ensure_single_field_for flag, fields do |field|
         {
           terms: { field => value.split(",") }
-        }
-      end
-    when "fuzzy_match"
-      ensure_single_field_for flag, fields do |field|
-        {
-          fuzzy: {
-            field => { value: value, fuzziness: "AUTO" }
-          }
         }
       end
     when "fuzzy_phrase"
