@@ -1,9 +1,11 @@
 class Tika
-  def initialize(host: "tika", port: 9998, logger:)
+  def initialize(host: "tika", port: 9998, number_of_threads: 2, logger:)
+    @connection_pool = Net::HTTP::Persistent.new(pool_size: number_of_threads)
     @host = host
     @port = port
     @port_s = port.to_s
     @logger = logger
+    @logger.info("SETUP") { "Setup Tika connection pool with #{number_of_threads} connections." }
   end
 
   # Extracts text from the given blob with the given mime_type using Tika.
@@ -107,12 +109,10 @@ class Tika
       end
     end
 
-    res = Net::HTTP.start(uri.hostname, uri.port) do |http|
-      begin
-        http.request(req)
-      rescue Exception => e
-        run_rescue(uri, req, retries, e)
-      end
+    begin
+      res = @connection_pool.request(req.uri, req)
+    rescue Exception => e
+      res = run_rescue(uri, req, retries, e)
     end
 
     case res

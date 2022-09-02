@@ -1,4 +1,5 @@
 require 'net/http'
+require 'net/http/persistent'
 require 'digest'
 require 'set'
 require 'request_store'
@@ -107,12 +108,14 @@ configure do
   tika = Tika.new(
     host: 'tika',
     port: 9998,
+    number_of_threads: configuration[:number_of_threads],
     logger: SinatraTemplate::Utils.log
   )
 
   elasticsearch = Elastic.new(
     host: 'elasticsearch',
     port: 9200,
+    number_of_threads: configuration[:number_of_threads],
     logger: SinatraTemplate::Utils.log
   )
   set :elasticsearch, elasticsearch
