@@ -992,6 +992,7 @@ This section gives an overview of all options that are configurable via environm
 - **MAX_REQUEST_HEADER_LENGTH** : maximum length of the headers of an incoming request. Defaults to 1024000.
 - **MAXIMUM_FILE_SIZE** : maximum size in bytes of files to extract and index content from. Defaults to 209715200.
 - **ELASTIC_READ_TIMEOUT** : timeout in seconds of requests to Elasticsearch. Defaults to 180.
+- **TIKA_READ_TIMEOUT** : timeout in seconds of requests to Tika. Defaults to 180.
 
 ## Discussions
 ### Why a custom Elasticsearch docker image?

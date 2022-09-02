@@ -1,6 +1,7 @@
 class Tika
   def initialize(host: "tika", port: 9998, number_of_threads: 2, logger:)
     @connection_pool = Net::HTTP::Persistent.new(pool_size: number_of_threads)
+    @connection_pool.read_timeout = ENV["TIKA_READ_TIMEOUT"].to_i
     @host = host
     @port = port
     @port_s = port.to_s
