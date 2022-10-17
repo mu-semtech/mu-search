@@ -11,27 +11,21 @@
       }
     ],
     [
-
       {
         "variables": [],
         "name": "public"
       }
     ]
- 
   ],
-  "default_settings" : {
+  "default_settings": {
     "analysis": {
       "normalizer": {
         "custom_sort_normalizer": {
-            "type": "custom",
-            "char_filter": [],
-            "filter": [
-                "lowercase",
-                "trim",
-                "asciifolding"
-            ]
+          "type": "custom",
+          "char_filter": [],
+          "filter": ["lowercase", "trim", "asciifolding"]
         }
-    }
+      }
     }
   },
   "types": [
@@ -49,8 +43,8 @@
       "mappings": {
         "properties": {
           "my_vector": {
-              "type": "dense_vector",
-              "dims": 3
+            "type": "dense_vector",
+            "dims": 3
           },
           "name": {
             "type": "text",
