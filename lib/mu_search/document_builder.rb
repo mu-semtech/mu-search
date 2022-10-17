@@ -124,6 +124,8 @@ SPARQL
           index_value = build_file_field(matching_values)
         elsif definition.type == "nested"
           index_value = build_nested_object(matching_values, definition.sub_properties)
+        elsif definition.type == "vector_dense"
+            index_value = build_vector_dense_property(prop_values)
         else
           raise "Unsupported property type #{definition.type} for property #{definition.name}. Property will not be handled by the document builder"
         end
@@ -181,6 +183,15 @@ SPARQL
         end
       end
       [language_map]
+    end
+
+    def build_vector_dense_property( values )
+      build_simple_property( values ).collect do |value|
+        json = JSON.parse value
+        json.collect do |v|
+          v.to_f
+        end
+      end
     end
 
     # Get the array of objects to be indexed for a given SPARQL result set
