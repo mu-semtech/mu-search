@@ -254,6 +254,15 @@ SPARQL
       [language_map]
     end
 
+    def build_vector_dense_property( values )
+      build_simple_property( values ).collect do |value|
+        json = JSON.parse value
+        json.collect do |v|
+          v.to_f
+        end
+      end
+    end
+
     # Get the array of objects to be indexed for a given SPARQL result set
     # of related resources configured to be indexed as nested object.
     # The properties to be indexed for the nested object are passed as an argument.
