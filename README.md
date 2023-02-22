@@ -906,12 +906,15 @@ The page number is zero-based.
 Highlighting is specified using the `highlight[:fields:]` query parameter, where a comma separated list of fields you want highlighted should be provided.
 You can use `*` as field name to highlight all fields.
 
-No settings are currently supported.
+###### Supported settings
+The default tag used for the highlighting is `<em>`. You can change the html tag to be used for highlighting using the `highlight[:tag:]` query parameter. E.g. `highlight[:tag:]=strong`
+
 
 See also <https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html>.
 
 ```
 GET /documents/search?filter[:sqs:]=fish&highlight[:fields:]=name,description
+GET /documents/search?filter[:sqs:]=fish&highlight[:fields:]=name,description&highlight[:tag:]=strong
 GET /documents/search?filter[:sqs:]=fish&highlight[:fields:]=*
 ```
 

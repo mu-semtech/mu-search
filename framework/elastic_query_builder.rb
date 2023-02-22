@@ -93,15 +93,21 @@ class ElasticQueryBuilder
 
   # Constructs elastic search highlight configuration.
   # An object of the shape:
-  # { fields: { "field1": {}, "field2": {}, ...}}
+  # { fields: { "field1": {}, "field2": {}, ...}, pre_tags: ["<tag>"], post_tags: ["<tag>"]}
   # One can use "*" as a field name to highlight all fields.
   # https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html
   def build_highlight
-    if @highlight and !@filter.empty? and @highlight[":fields:"]
-      @es_query["highlight"] = {
-        fields:  @highlight[":fields:"].split(",").map{|field| [field, {}]}.to_h
-      }
+    if @highlight and !@filter.empty?
+      @es_query["highlight"] = {}
+      if @highlight[":fields:"]
+        @es_query["highlight"][:fields] = @highlight[":fields:"].split(",").map{|field| [field, {}]}.to_h
+      end
+      if @highlight[":tag:"]
+        @es_query["highlight"][:pre_tags] = ["<%s>" % @highlight[":tag:"]]
+        @es_query["highlight"][:post_tags] = ["</%s>" % @highlight[":tag:"]]
+      end
     end
+    puts @es_query["highlight"].to_s
     self
   end
 
