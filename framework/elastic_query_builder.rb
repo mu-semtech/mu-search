@@ -107,7 +107,6 @@ class ElasticQueryBuilder
         @es_query["highlight"][:post_tags] = ["</%s>" % @highlight[":tag:"]]
       end
     end
-    puts @es_query["highlight"].to_s
     self
   end
 
