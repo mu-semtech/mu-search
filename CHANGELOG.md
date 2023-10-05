@@ -1,6 +1,9 @@
 # Changelog
 ## latest
 
+## v0.9.1
+- fix: correctly handle deletion of a resource. due to a bug not all deletions in the DB also resulted in removal from the search index
+
 ## v0.9.0
 - fix: Base image bumped to fix runtime warning (see issue [25](https://github.com/mu-semtech/mu-ruby-template/pull/25) on the mu-ruby-template)
 
