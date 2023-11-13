@@ -1,5 +1,6 @@
 # Changelog
 ## latest
+- fix: Support kebab-cased property names with modifiers: previously ':gte:order-date' resulted in ['gte', ['order']] while the expected result is ['gte', ['order-date']]
 
 ## v0.9.1
 - fix: correctly handle deletion of a resource. due to a bug not all deletions in the DB also resulted in removal from the search index
