@@ -1,6 +1,7 @@
 # Changelog
 ## latest
 - fix: Support kebab-cased property names with modifiers: previously ':gte:order-date' resulted in ['gte', ['order']] while the expected result is ['gte', ['order-date']]
+- change: pin base docker image to semtech/mu-jruby-template:2.13.0
 
 ## v0.9.1
 - fix: correctly handle deletion of a resource. due to a bug not all deletions in the DB also resulted in removal from the search index
