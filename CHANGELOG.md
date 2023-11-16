@@ -1,5 +1,7 @@
 # Changelog
 ## latest
+
+## v0.9.2
 - fix: Support kebab-cased property names with modifiers: previously ':gte:order-date' resulted in ['gte', ['order']] while the expected result is ['gte', ['order-date']]
 - change: pin base docker image to semtech/mu-jruby-template:2.13.0
 
