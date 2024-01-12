@@ -1,5 +1,7 @@
 # Changelog
 ## latest
+## v0.9.3
+- fix: typo in regex for kebap-cased property names
 
 ## v0.9.2
 - fix: Support kebab-cased property names with modifiers: previously ':gte:order-date' resulted in ['gte', ['order']] while the expected result is ['gte', ['order-date']]
