@@ -1,4 +1,8 @@
 # Changelog
+## Unreleased
+**Features**
+- added ignored groups: groups that should not be taken into account when searching
+
 ## v0.10.0-beta.5
 **Fixes**
 - Fix uuid ensurance for composite type indexes
