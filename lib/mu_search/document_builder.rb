@@ -111,7 +111,8 @@ SPARQL
                   .query(query)
                   .group_by { |triple| triple.s.to_s }
 
-      key_value_tuples = property_query_info.map do |info|
+      key_value_tuples = []
+      property_query_info.each do |info|
         matching_triples = results[info[:construct_uri]] || []
         matching_values = matching_triples.map { |triple| triple.o }
         definition = info[:property_definition]
@@ -124,13 +125,13 @@ SPARQL
           index_value = build_file_field(matching_values)
         elsif definition.type == "nested"
           index_value = build_nested_object(matching_values, definition.sub_properties)
-        elsif definition.type == "vector_dense"
-            index_value = build_vector_dense_property(prop_values)
+        elsif definition.type == "dense_vector"
+          index_value = build_vector_dense_property(matching_values)
         else
           raise "Unsupported property type #{definition.type} for property #{definition.name}. Property will not be handled by the document builder"
         end
 
-        [definition.name, denumerate(index_value)]
+        key_value_tuples << [definition.name, denumerate(index_value)]
       end
 
       Hash[key_value_tuples]
