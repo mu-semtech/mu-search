@@ -26,7 +26,7 @@ class Logger
     true
   end
 
-  def in_scope? progname, severity
+  def in_scope?(progname, severity)
     if progname
       severity >= scope_log_level(progname)
     else
@@ -34,22 +34,22 @@ class Logger
     end
   end
 
-  def scope_log_level progname
+  def scope_log_level(progname)
     @scope_levels = {} if @scope_levels.nil?
     if @scope_levels[progname].nil? # put value in scope_levels cache
-      scope = progname.to_s.upcase().gsub(/\s+/, "_")
+      scope = progname.to_s.upcase.gsub(/\s+/, "_")
       env_var = "LOG_SCOPE_#{scope}"
       @scope_levels[progname] = string_to_log_level ENV[env_var]
     end
     @scope_levels[progname]
   end
 
-  def string_to_log_level level_s
+  def string_to_log_level(level_s)
     level_const = level # fallback to default general log level
     if level_s
       level_s = level_s.upcase
       if ['UNKNOWN', 'FATAL', 'ERROR', 'WARN', 'INFO', 'DEBUG'].include? level_s
-        level_const = Kernel.const_get("Logger::#{level_s}")
+        level_const = Logger.const_get(level_s)
       end
     end
     level_const

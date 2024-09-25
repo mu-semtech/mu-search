@@ -1,4 +1,4 @@
-FROM semtech/mu-jruby-template
+FROM semtech/mu-jruby-template:3.1.0
 
 LABEL maintainer="redpencil <info@redpencil.io>"
 # 200MB
@@ -10,7 +10,7 @@ ENV LOG_SCOPE_SETUP="info"
 ENV LOG_SCOPE_INDEX_MGMT="info"
 ENV LOG_SCOPE_TIKA="warn"
 ENV LOG_SCOPE_AUTHORIZATION="warn"
-ENV LOG_SCOPE_DELTA="warn"
+ENV LOG_SCOPE_DELTA="info"
 ENV LOG_SCOPE_UPDATE_HANDLER="info"
 ENV LOG_SCOPE_INDEXING="info"
 ENV LOG_SCOPE_SEARCH="warn"

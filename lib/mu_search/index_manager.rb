@@ -1,3 +1,5 @@
+require_relative './search_index'
+
 module MuSearch
   ###
   # The IndexManager keeps track of indexes and their state in:
@@ -6,8 +8,8 @@ module MuSearch
   # - triplestore
   ###
   class IndexManager
-
     attr_reader :indexes
+
     def initialize(logger:, elasticsearch:, tika:, sparql_connection_pool:, search_configuration:)
       @logger = logger
       @elasticsearch = elasticsearch
@@ -22,40 +24,23 @@ module MuSearch
 
     # Fetches an array of indexes for the given type and allowed/used groups
     # Ensures all indexes exists and are up-to-date when the function returns
-    # If no type is passed, indexes for all types are invalidated
-    # If no allowed_groups are passed, all indexes are invalidated regardless of access rights
+    # If no type is passed, indexes for all types are fetched
+    # If no allowed_groups are passed, all indexes are fetched regardless of access rights
     #   - type_name: type to find index for
     #   - allowed_groups: allowed groups to find index for (array of {group, variables}-objects)
     #   - force_update: whether the index needs to be updated only when it's marked as invalid or not
     #
-    # In case of additive indexes, returns one index per allowed group
-    # Otherwise, returns an array of a single index
+    # Returns an array of indexes that match the allowed_groups when combined
     # Returns an empty array if no index is found
-    def fetch_indexes type_name, allowed_groups, force_update: false
+    def fetch_indexes(type_name, allowed_groups, force_update: false)
       indexes_to_update = []
       type_names = type_name.nil? ? @indexes.keys : [type_name]
 
       @master_mutex.synchronize do
         type_names.each do |type_name|
           if allowed_groups
-            if @configuration[:additive_indexes]
-              additive_indexes = []
-              allowed_groups.each do |allowed_group|
-                index = get_matching_index type_name, [allowed_group]
-                additive_indexes << index unless index.nil?
-              end
-              indexes_to_update += additive_indexes
-              @logger.debug("INDEX MGMT") do
-                index_names_s = additive_indexes.map { |index| index.name }.join(", ")
-                "Fetched #{additive_indexes.length} additive indexes for type '#{type_name}' and allowed_groups #{allowed_groups}: #{index_names_s}"
-              end
-            else
-              index = get_matching_index type_name, allowed_groups
-              unless index.nil?
-                indexes_to_update << index
-                @logger.debug("INDEX MGMT") { "Fetched index for type '#{type_name}' and allowed_groups #{allowed_groups}: #{index.name}" }
-              end
-            end
+            additive_indexes = ensure_index_combination_for_groups type_name, allowed_groups
+            indexes_to_update += additive_indexes
           elsif @indexes[type_name] # fetch all indexes, regardless of access rights
             @indexes[type_name].each do |_, index|
               @logger.debug("INDEX MGMT") { "Fetched index for type '#{type_name}' and allowed_groups #{index.allowed_groups}: #{index.name}" }
@@ -66,14 +51,14 @@ module MuSearch
 
         indexes_to_update.each do |index|
           index.status = :invalid if force_update
-          update_index index
-        end
-
-        if indexes_to_update.any? { |index| index.status == :invalid }
-          @logger.warn("INDEX MGMT") { "Not all indexes are up-to-date. Search results may be incomplete." }
         end
       end
-
+      indexes_to_update.each do |index|
+        update_index index
+      end
+      if indexes_to_update.any? { |index| index.status == :invalid }
+          @logger.warn("INDEX MGMT") { "Not all indexes are up-to-date. Search results may be incomplete." }
+      end
       indexes_to_update
     end
 
@@ -86,22 +71,15 @@ module MuSearch
     # Returns the list of indexes that are invalidated
     #
     # TODO correctly handle composite indexes
-    def invalidate_indexes type_name, allowed_groups
+    def invalidate_indexes(type_name, allowed_groups)
       indexes_to_invalidate = []
       type_names = type_name.nil? ? @indexes.keys : [type_name]
 
       @master_mutex.synchronize do
         type_names.each do |type_name|
           if allowed_groups
-            if @configuration[:additive_indexes]
-              allowed_groups.each do |allowed_group|
-                index = find_matching_index type_name, [allowed_group]
-                indexes_to_invalidate << index unless index.nil?
-              end
-            else
-              index = find_matching_index type_name, allowed_groups
-              indexes_to_invalidate << index unless index.nil?
-            end
+            index = find_single_index_for_groups type_name, allowed_groups
+            indexes_to_invalidate << index unless index.nil?
           elsif @indexes[type_name] # invalidate all indexes, regardless of access rights
             @indexes[type_name].each do |_, index|
               indexes_to_invalidate << index
@@ -112,7 +90,7 @@ module MuSearch
         @logger.info("INDEX MGMT") do
           type_s = type_name.nil? ? "all types" : "type '#{type_name}'"
           allowed_groups_s = allowed_groups.nil? ? "all groups" : "allowed_groups #{allowed_groups}"
-          index_names_s = indexes_to_invalidate.map { |index| index.name }.join(", ")
+          index_names_s = indexes_to_invalidate.map(&:name).join(", ")
           "Found #{indexes_to_invalidate.length} indexes to invalidate for #{type_s} and #{allowed_groups_s}: #{index_names_s}"
         end
 
@@ -125,58 +103,43 @@ module MuSearch
       indexes_to_invalidate
     end
 
-
     # Remove the indexes for the given type and allowed groups
     # If no type is passed, indexes for all types are removed
     # If no allowed_groups are passed, all indexes are removed regardless of access rights
-    # - type_name: name of the index type to remove all indexes for
+    # - type name: name of the index type to remove all indexes for
     # - allowed_groups: allowed groups to remove indexes for (array of {group, variables}-objects)
     #
     # Returns the list of indexes that are removed
     #
     # TODO correctly handle composite indexes
-    def remove_indexes type_name, allowed_groups
+    def remove_indexes(type_name, allowed_groups)
       indexes_to_remove = []
-      type_names = type_name.nil? ? @indexes.keys : [type_name]
-
       @master_mutex.synchronize do
-        type_names.each do |type_name|
-          if allowed_groups
-            if @configuration[:additive_indexes]
-              allowed_groups.each do |allowed_group|
-                index = find_matching_index type_name, [allowed_group]
-                indexes_to_remove << index unless index.nil?
-              end
-            else
-              index = find_matching_index type_name, allowed_groups
-              indexes_to_remove << index unless index.nil?
-            end
-          elsif @indexes[type_name] # remove all indexes, regardless of access rights
-            @indexes[type_name].each do |_, index|
-              indexes_to_remove << index
-            end
+        if allowed_groups
+          index = find_single_index_for_groups type_name, allowed_groups
+          indexes_to_remove << index unless index.nil?
+        elsif @indexes[type_name] # remove all indexes, regardless of access rights
+          @indexes[type_name].each do |_, index|
+            indexes_to_remove << index
           end
         end
+      end
+      @logger.info("INDEX MGMT") do
+        allowed_groups_s = allowed_groups.nil? ? "all groups" : "allowed_groups #{allowed_groups}"
+        index_names_s = indexes_to_remove.map(&:name).join(", ")
+        "Found #{indexes_to_remove.length} indexes to remove for #{type_name} and #{allowed_groups_s}: #{index_names_s}"
+      end
 
-        @logger.info("INDEX MGMT") do
-          type_s = type_name.nil? ? "all types" : "type '#{type_name}'"
-          allowed_groups_s = allowed_groups.nil? ? "all groups" : "allowed_groups #{allowed_groups}"
-          index_names_s = indexes_to_remove.map { |index| index.name }.join(", ")
-          "Found #{indexes_to_remove.length} indexes to remove for #{type_s} and #{allowed_groups_s}: #{index_names_s}"
-        end
-
-        indexes_to_remove.each do |index|
-          @logger.debug("INDEX MGMT") { "Remove index #{index.name}" }
-          index.mutex.synchronize do
-            remove_index index allowed_groups
-            index.status = :deleted
-          end
+      indexes_to_remove.each do |index|
+        @logger.debug("INDEX MGMT") { "Remove index #{index.name}" }
+        index.mutex.synchronize do
+          remove_index(index)
+          index.status = :deleted
         end
       end
 
       indexes_to_remove
     end
-
 
     private
 
@@ -201,11 +164,7 @@ module MuSearch
         @configuration[:eager_indexing_groups].each do |allowed_groups|
           @configuration[:type_definitions].keys.each do |type_name|
             count = count + 1
-            unless @configuration[:persist_indexes]
-              @logger.info("INDEX MGMT") { "Removing eager index for type '#{type_name}' and allowed_groups #{allowed_groups} since indexes are configured not to be persisted." }
-              remove_index type_name, allowed_groups
-            end
-            index = ensure_index type_name, allowed_groups
+            index = ensure_index(type_name, allowed_groups, [], true)
             @logger.info("INDEX MGMT") { "(#{count}/#{total}) Eager index #{index.name} created for type '#{index.type_name}' and allowed_groups #{allowed_groups}. Current status: #{index.status}." }
             if index.status == :invalid
               @logger.info("INDEX MGMT") { "Eager index #{index.name} not up-to-date. Start reindexing documents." }
@@ -218,33 +177,66 @@ module MuSearch
       end
     end
 
-    # Get a single matching index for the given type and allowed groups.
-    # Create a new one if none is found in the cache.
-    #   - type_name: type to find index for
-    #   - allowed_groups: allowed groups to find index for (array of {group, variables}-objects)
-    def get_matching_index type_name, allowed_groups
-      index = find_matching_index type_name, allowed_groups
-      if index
-        @logger.debug("INDEX MGMT") { "Found matching index in cache for type '#{type_name}' and allowed_groups #{allowed_groups}" }
-      else
-        @logger.info("INDEX MGMT") { "Didn't find matching index for type '#{type_name}' and allowed_groups #{allowed_groups} in cache. Going to fetch index from triplestore or create it if it doesn't exist yet. Configure eager indexes to avoid building indexes at runtime." }
-        index = ensure_index type_name, allowed_groups
-      end
-      index
-    end
-
-    # Find a single matching index for the given type and allowed/used groups
+    # Find a single index for the given type that exactly matches the given allowed/used groups
     #   - type_name: type to find index for
     #   - allowed_groups: allowed groups to find index for (array of {group, variables}-objects)
     #   - used_groups: used groups to find index for (array of {group, variables}-objects)
     # Returns nil if no index is found
     #
     # TODO take used_groups into account when they are supported by mu-authorization
-    def find_matching_index type_name, allowed_groups, used_groups = []
-      @logger.debug("INDEX MGMT") { "Trying to find matching index in cache for type '#{type_name}', allowed_groups #{allowed_groups} and used_groups #{used_groups}" }
+    def find_single_index_for_groups(type_name, allowed_groups, used_groups = [])
+      @logger.debug("INDEX MGMT") { "Trying to find single matching index in cache for type '#{type_name}', allowed_groups #{allowed_groups} and used_groups #{used_groups}" }
       group_key = serialize_authorization_groups allowed_groups
       index = @indexes.dig(type_name, group_key)
       index
+    end
+
+    # Find matching index combination for the given type and allowed/used groups
+    #   - type_name: type to find index for
+    #   - allowed_groups: allowed groups to find index for (array of {group, variables}-objects)
+    #   - used_groups: used groups to find index for (array of {group, variables}-objects)
+    # If no index combination is found, a single index is created for the given set of allowed_groups
+    #
+    # TODO take used_groups into account when they are supported by mu-authorization
+    def ensure_index_combination_for_groups(type_name, allowed_groups, used_groups = [])
+      @logger.debug("INDEX MGMT") { "Trying to combine indexes in cache for type '#{type_name}' to match allowed_groups #{allowed_groups} and used_groups #{used_groups}" }
+
+      indexes = @indexes[type_name].values.find_all(&:eager_index?)
+      @logger.debug("INDEX MGMT") { "Currently known indexes for type '#{type_name}': #{indexes.map(&:allowed_groups).to_json}" }
+      # Find all indexes with allowed_groups that are a subset of the given allowed_groups
+      matching_indexes = indexes.find_all do |idx|
+        idx.allowed_groups.all? do |idx_allowed_group|
+          allowed_groups.include? idx_allowed_group
+        end
+      end
+
+      # Only keep indexes which are not a subset of/equal to another index in the list
+      minimal_matching_indexes = matching_indexes.reject do |idx|
+        matching_indexes.find do |other_idx|
+          idx.allowed_groups.all? { |group| other_idx.allowed_groups.include? group } and other_idx.allowed_groups.count > idx.allowed_groups.count # we are a strict subset, not the same set
+        end
+      end
+
+      # Verify whether allowed_groups match is complete.
+      # I.e. the combination of allowed groups of the matching indexes cover the given allowed_groups
+      is_complete_match = allowed_groups.all? do |allowed_group|
+        minimal_matching_indexes.any? do |idx|
+          idx.allowed_groups.include? allowed_group
+        end
+      end
+
+      if is_complete_match
+        @logger.debug("INDEX MGMT") do
+          "Fetched #{minimal_matching_indexes.length} additive indexes for type '#{type_name}' that fully match allowed_groups #{allowed_groups}: #{minimal_matching_indexes.map(&:name).join(', ')}\nMatching allowed groups of the indexes: #{minimal_matching_indexes.map(&:allowed_groups).to_json}"
+        end
+        minimal_matching_indexes
+      else
+        @logger.info("INDEX MGMT") do
+          "Unable to find an index combination for type '#{type_name}' to fully match allowed_groups #{allowed_groups}. Going to create a new index.}"
+        end
+        index = ensure_index type_name, allowed_groups, used_groups
+        [index]
+      end
     end
 
     # Ensure index exists in the triplestore, in Elasticsearch and
@@ -252,7 +244,7 @@ module MuSearch
     #
     # Returns the index with status :valid or :invalid depending
     # whether the index already exists in Elasticsearch
-    def ensure_index type_name, allowed_groups, used_groups = []
+    def ensure_index(type_name, allowed_groups, used_groups = [], is_eager_index = false)
       sorted_allowed_groups = sort_authorization_groups allowed_groups
       sorted_used_groups = sort_authorization_groups used_groups
       index_name = generate_index_name type_name, sorted_allowed_groups, sorted_used_groups
@@ -265,15 +257,18 @@ module MuSearch
       end
 
       # Ensure index exists in the IndexManager
-      index = find_matching_index type_name, allowed_groups, used_groups
-      unless index
+      index = find_single_index_for_groups type_name, allowed_groups, used_groups
+      if index
+        index.is_eager_index = is_eager_index
+      else
         @logger.debug("INDEX MGMT") { "Add index #{index_name} to cache for type '#{type_name}', allowed_groups #{allowed_groups} and used_groups #{used_groups}" }
         index = MuSearch::SearchIndex.new(
           uri: index_uri,
           name: index_name,
           type_name: type_name,
           allowed_groups: sorted_allowed_groups,
-          used_groups: sorted_used_groups)
+          used_groups: sorted_used_groups,
+          is_eager_index: is_eager_index)
         @indexes[type_name] = {} unless @indexes.has_key? type_name
         group_key = serialize_authorization_groups sorted_allowed_groups
         @indexes[type_name][group_key] = index
@@ -289,6 +284,7 @@ module MuSearch
           mappings["properties"] = {} if mappings["properties"].nil?
           # uuid must be configured as keyword to be able to collapse results
           mappings["properties"]["uuid"] = { type: "keyword" }
+          mappings["properties"]["uri"] = { type: "keyword" }
           # TODO deep merge custom and default settings
           settings = type_definition["settings"] || @configuration[:default_index_settings] || {}
           @elasticsearch.create_index index_name, mappings, settings
@@ -305,7 +301,7 @@ module MuSearch
     # The Elasticsearch index is never completely removed.
     #   - index: SearchIndex to update
     # Returns the index.
-    def update_index index
+    def update_index(index)
       if index.status == :invalid
         index.mutex.synchronize do
           @logger.info("INDEX MGMT") { "Updating index #{index.name}" }
@@ -330,7 +326,7 @@ module MuSearch
     # I.e. index documents for a specific type in the given Elasticsearch index
     # taking the authorization groups into account. Documents are indexed in batches.
     #   - index: SearchIndex to index documents in
-    def index_documents index
+    def index_documents(index)
       search_configuration = @configuration.select do |key|
         [:number_of_threads, :batch_size, :max_batches,
          :attachment_path_base, :type_definitions].include? key
@@ -345,27 +341,16 @@ module MuSearch
       builder.build
     end
 
-    # Removes the index for the given type_name and allowed/used groups
-    # from the triplestore, Elasticsearch and
-    # the in-memory indexes cache of the IndexManager.
-    # Does not yield an error if index doesn't exist
-    def remove_index type_name, allowed_groups, used_groups = []
-      sorted_allowed_groups = sort_authorization_groups allowed_groups
-      sorted_used_groups = sort_authorization_groups used_groups
-      index_name = generate_index_name type_name, sorted_allowed_groups, sorted_used_groups
-
-      # Remove index from IndexManager
-      if @indexes.has_key? type_name
-        @indexes[type_name].delete_if { |_, value| value.name == index_name }
-
-        # Remove index from triplestore and Elasticsearch
-        remove_index_by_name index_name
-      end
+    # Removes the index from the triplestore, Elasticsearch
+    # and the in-memory indexes cache of the IndexManager.
+    def remove_index(index)
+      @indexes.delete(index)
+      remove_index_by_name(index.name)
     end
 
     # Removes the index from the triplestore and Elasticsearch
     # Does not yield an error if index doesn't exist
-    def remove_index_by_name index_name
+    def remove_index_by_name(index_name)
       @logger.debug("INDEX MGMT") { "Removing index #{index_name} from triplestore" }
       remove_index_from_triplestore index_name
 
@@ -388,7 +373,7 @@ SELECT ?name WHERE {
     }
   }
 SPARQL
-      index_names = result.map { |r| r.name }
+      index_names = result.map(&:name)
       index_names.each do |index_name|
         remove_index_by_name index_name
         @logger.info("INDEX MGMT") { "Remove persisted index #{index_name} in triplestore and Elasticsearch" }
@@ -403,12 +388,12 @@ SPARQL
     #   - used_groups: used groups of the index (array of {group, variables}-objects)
     #
     # TODO cleanup internal model used for storing indexes in triplestore
-    def create_index_in_triplestore type_name, index_name, allowed_groups, used_groups
-      uuid = generate_uuid()
-      uri = "http://mu.semte.ch/authorization/elasticsearch/indexes/#{uuid}"  # TODO update base URI
+    def create_index_in_triplestore(type_name, index_name, allowed_groups, used_groups)
+      uuid = Mu::generate_uuid
+      uri = "http://mu.semte.ch/authorization/elasticsearch/indexes/#{uuid}" # TODO update base URI
 
-      def groups_term groups
-        groups.map { |g| sparql_escape_string g.to_json }.join(",")
+      def groups_term(groups)
+        groups.map { |g| Mu::sparql_escape_string g.to_json }.join(",")
       end
 
       allowed_group_statement = allowed_groups.empty? ? "" : "search:hasAllowedGroup #{groups_term(allowed_groups)} ; "
@@ -434,7 +419,7 @@ SPARQL
     # Removes the index with given name from the triplestore
     #
     #   - index_name: name of the index to remove
-    def remove_index_from_triplestore index_name
+    def remove_index_from_triplestore(index_name)
       @sparql_connection_pool.sudo_update <<SPARQL
 DELETE {
   GRAPH <http://mu.semte.ch/authorization> {
@@ -444,7 +429,7 @@ DELETE {
 WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?s a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
-           <http://mu.semte.ch/vocabularies/authorization/indexName> #{sparql_escape_string index_name} ;
+           <http://mu.semte.ch/vocabularies/authorization/indexName> #{Mu::sparql_escape_string index_name} ;
            ?p ?o .
     }
 }
@@ -453,16 +438,16 @@ SPARQL
 
     # Find index by name in the triplestore
     # Returns nil if none is found
-    def find_index_in_triplestore_by_name index_name
+    def find_index_in_triplestore_by_name(index_name)
       result = @sparql_connection_pool.sudo_query <<SPARQL
 SELECT ?index WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
-               <http://mu.semte.ch/vocabularies/authorization/indexName> #{sparql_escape_string index_name} .
+               <http://mu.semte.ch/vocabularies/authorization/indexName> #{Mu::sparql_escape_string index_name} .
     }
   } LIMIT 1
 SPARQL
-      result.map { |r| r.index }.first
+      result.map(&:index).first
     end
 
     # Gets indexes for the given type name from the triplestore
@@ -471,10 +456,10 @@ SPARQL
     #
     # Note: there may be multiple indexes for one type.
     #       One per (combination of) allowed groups
-    def get_indexes_from_triplestore_by_type type_name
+    def get_indexes_from_triplestore_by_type(type_name)
       indexes = {}
 
-      query_result = @sparql_connection_pool.sudo_query  <<SPARQL
+      query_result = @sparql_connection_pool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
@@ -488,7 +473,7 @@ SPARQL
         uri = result["index"].to_s
         index_name = result["index_name"].to_s
 
-        allowed_groups_result = @sparql_connection_pool.sudo_query  <<SPARQL
+        allowed_groups_result = @sparql_connection_pool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         <#{uri}> <http://mu.semte.ch/vocabularies/authorization/hasAllowedGroup> ?group
@@ -497,7 +482,7 @@ SPARQL
 SPARQL
         allowed_groups = allowed_groups_result.map { |g| JSON.parse g["group"].to_s }
 
-        used_groups_result = @sparql_connection_pool.sudo_query  <<SPARQL
+        used_groups_result = @sparql_connection_pool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         <#{uri}> <http://mu.semte.ch/vocabularies/authorization/hasUsedGroup> ?group
@@ -512,6 +497,7 @@ SPARQL
           uri: uri,
           name: index_name,
           type_name: type_name,
+          is_eager_index: false, # will be overwritten later on initialization of eager indexes
           allowed_groups: allowed_groups,
           used_groups: used_groups)
       end
@@ -520,13 +506,12 @@ SPARQL
     end
 
     # Generate a unique name for an index based on the given type and allowed/used groups
-    def generate_index_name type_name, sorted_allowed_groups, sorted_used_groups
+    def generate_index_name(type_name, sorted_allowed_groups, sorted_used_groups)
       groups = sorted_allowed_groups.map do |group|
         # order keys of each group object alphabetically to ensure unique json serialization
-        Hash[ group.sort_by { |key, _| key } ].to_json
+        Hash[group.sort_by { |key, _| key }].to_json
       end
       Digest::MD5.hexdigest (type_name + "-" + groups.join("-"))
     end
-
   end
 end
