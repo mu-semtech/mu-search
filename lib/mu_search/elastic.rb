@@ -1,4 +1,6 @@
 require 'elasticsearch'
+require 'faraday/typhoeus'
+
 # monkeypatch "authentic product check"" in client
 module Elasticsearch
   class Client

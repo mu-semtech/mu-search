@@ -5,3 +5,5 @@ source 'https://rubygems.org' do
   # matching our current backend setup
   gem "elasticsearch", "~> 7.17"
 end
+
+gem "faraday-typhoeus", "~> 1.1"
