@@ -1,11 +1,3 @@
-require 'net/http'
-require 'digest'
-require 'set'
-require 'request_store'
-require 'listen'
-require 'singleton'
-require 'base64'
-require 'open3'
 require 'webrick'
 
 require_relative 'lib/logger.rb'

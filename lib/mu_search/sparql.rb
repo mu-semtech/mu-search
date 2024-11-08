@@ -1,4 +1,3 @@
-require 'request_store'
 module MuSearch
   module SPARQL
     class ClientWrapper
