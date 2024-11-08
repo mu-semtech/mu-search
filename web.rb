@@ -20,7 +20,7 @@ require_relative 'lib/mu_search/document_builder.rb'
 require_relative 'lib/mu_search/index_builder.rb'
 require_relative 'lib/mu_search/search_index.rb'
 require_relative 'lib/mu_search/index_manager.rb'
-require_relative 'framework/elastic.rb'
+require_relative 'lib/mu_search/elastic.rb'
 require_relative 'framework/elastic_query_builder.rb'
 require_relative 'framework/tika.rb'
 require_relative 'framework/jsonapi.rb'
@@ -112,7 +112,7 @@ configure do
     logger: Mu::log
   )
 
-  elasticsearch = Elastic.new(
+  elasticsearch = MuSearch::Elastic.new(
     host: 'elasticsearch',
     port: 9200,
     logger: Mu::log
