@@ -17,6 +17,7 @@ require_relative 'framework/elastic_query_builder.rb'
 require_relative 'framework/tika.rb'
 require_relative 'framework/jsonapi.rb'
 
+
 ##
 # WEBrick setup
 ##
