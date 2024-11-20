@@ -17,5 +17,16 @@ module MuSearch
     def eager_index?
       @is_eager_index
     end
+
+    def to_json(*args)
+      {
+        uri: uri,
+        id: name,
+        type: type_name,
+        is_eager_index: @is_eager_index,
+        allowed_groups: allowed_groups,
+        status: status
+      }.to_json(*args)
+    end
   end
 end
