@@ -76,6 +76,10 @@ module MuSearch
         raise e
       end
     end
+    # Fetch index statistics
+    def index_stats
+      client.indices.stats
+    end
 
     # Deletes an index from ElasticSearch
     #   - index: Name of the index to be removed
