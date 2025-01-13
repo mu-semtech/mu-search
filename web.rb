@@ -34,7 +34,8 @@ WEBrick::HTTPRequest.const_set("MAX_URI_LENGTH", max_uri_length)
 max_header_length = ENV["MAX_REQUEST_HEADER_LENGTH"].to_i > 0 ? ENV["MAX_REQUEST_HEADER_LENGTH"].to_i : 1024000
 Mu::log.info("SETUP") { "Set WEBrick MAX_HEADER_LENGTH to #{max_header_length}" }
 WEBrick::HTTPRequest.const_set("MAX_HEADER_LENGTH", max_header_length)
-Psych::Parser.code_point_limit= 20_000_000
+max_yaml_size = ENV["MAX_YAML_SIZE"].to_i > 0 ? ENV["MAX_YAML_SIZE"].to_i : 20_000_000
+Psych::Parser.code_point_limit= max_yaml_size
 
 Mu::log.formatter = proc do |severity, datetime, progname, msg|
   "#{severity} [\##{$$}] #{progname} -- #{msg}\n"
