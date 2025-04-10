@@ -21,7 +21,7 @@ services:
     volumes:
       - ./config/search:/config
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.0.0
+    image: semtech/mu-search-elastic-backend:1.1.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
     environment:
@@ -90,7 +90,7 @@ First, make sure the search indexes are written to a mounted volume by specifyin
 ```yml
 services:
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.0.0
+    image: semtech/mu-search-elastic-backend:1.1.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
 ```
