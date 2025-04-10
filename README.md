@@ -555,8 +555,12 @@ For example:
             },
             "mappings": {
               "properties": {
-                "title.default" : { "type" : "text" },
-                "title.en": { "type" : "text" }
+                "title": {
+                  "properties": {
+                    "default" : { "type" : "text" },
+                    "en": { "type" : "text" }
+                  }
+                }
               }
             }
          }
