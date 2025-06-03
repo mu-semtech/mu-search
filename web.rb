@@ -105,7 +105,16 @@ configure do
   set :protection, :except => [:json_csrf]
   set :dev, (ENV['RACK_ENV'] == 'development')
 
-  configuration = MuSearch::ConfigParser.parse('/config/config.json')
+  sparql_connection_pool = MuSearch::SPARQL::ConnectionPool.new(
+    number_of_threads: ENV["NUMBER_OF_THREADS"].to_i > 0 ? ENV["NUMBER_OF_THREADS"].to_i : 1,
+    logger: Mu::log
+  )
+  until sparql_connection_pool.up?
+    Mu::log.info("SETUP") { "...waiting for SPARQL endpoint..." }
+    sleep 3
+  end
+
+  configuration = MuSearch::ConfigParser.parse('/config/config.json', sparql_connection_pool)
   set configuration
 
   tika = Tika.new(
@@ -121,20 +130,12 @@ configure do
   )
   set :elasticsearch, elasticsearch
 
-  sparql_connection_pool = MuSearch::SPARQL::ConnectionPool.new(
-    number_of_threads: configuration[:number_of_threads],
-    logger: Mu::log
-  )
-
   until elasticsearch.up?
     Mu::log.info("SETUP") { "...waiting for elasticsearch..." }
     sleep 1
   end
 
-  until sparql_connection_pool.up?
-    Mu::log.info("SETUP") { "...waiting for SPARQL endpoint..." }
-    sleep 1
-  end
+
 
   index_manager = setup_index_manager elasticsearch, tika, sparql_connection_pool, configuration
   set :index_manager, index_manager

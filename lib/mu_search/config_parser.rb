@@ -1,4 +1,7 @@
 require_relative './index_definition.rb'
+require 'digest'
+require 'securerandom'
+require 'time'
 
 module MuSearch
   module ConfigParser
@@ -8,7 +11,7 @@ module MuSearch
     # Fallback to a default configuration value if none is provided.
     # Environment variables take precedence over the JSON file.
     ##
-    def self.parse(path)
+    def self.parse(path, sparql_connection_pool)
       default_configuration = {
         batch_size: 100,
         common_terms_cutoff_frequency: 0.001,
@@ -49,7 +52,72 @@ module MuSearch
       end
       config[:ignored_allowed_groups] = json_config["ignored_allowed_groups"] || []
       config[:type_definitions] = Hash[MuSearch::IndexDefinition.from_json_config(json_config["types"])]
+
+      check_configuration_changes(config, sparql_connection_pool)
+
       config
+    end
+
+    ##
+    # Check if the configuration has changed by comparing hashes in the triplestore
+    ##
+    def self.check_configuration_changes(config, sparql_connection_pool)
+      current_config_hash = Digest::SHA256.hexdigest(config.to_json)
+
+      query = <<~SPARQL
+        PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+        PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+        SELECT ?hash
+        WHERE {
+          ?s a ext:SearchConfiguration ;
+             ext:configHash ?hash .
+        }
+        LIMIT 1
+      SPARQL
+
+      begin
+        stored_config = sparql_connection_pool.sudo_query(query)
+        stored_hash = stored_config.first&.dig(:hash, :value)
+
+        if stored_hash && stored_hash != current_config_hash
+          Mu::log.warn("CONFIG_PARSER") { "Configuration has changed! A reindex is required for the changes to take effect." }
+        end
+
+        # Store current configuration hash
+        update_query = <<~SPARQL
+          PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+          PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+          PREFIX dct: <http://purl.org/dc/terms/>
+
+          DELETE {
+            ?s a ext:SearchConfiguration ;
+               ext:configHash ?oldHash ;
+               dct:modified ?modified .
+          }
+          WHERE {
+            ?s a ext:SearchConfiguration ;
+               ext:configHash ?oldHash ;
+               dct:modified ?modified .
+          }
+        SPARQL
+        sparql_connection_pool.sudo_update(update_query)
+        sparql_connection_pool.sudo_update(<<~SPARQL)
+          PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+          PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+          PREFIX dct: <http://purl.org/dc/terms/>
+
+          INSERT DATA {
+            GRAPH <http://mu.semte.ch/graphs/public> {
+              <http://mu.semte.ch/services/search/configuration> a ext:SearchConfiguration ;
+                ext:configHash "#{current_config_hash}" ;
+                dct:modified #{Mu::sparql_escape_datetime(DateTime.now)} .
+            }
+          }
+        SPARQL
+      rescue StandardError => e
+        Mu::log.error("CONFIG_PARSER") { "Failed to check configuration changes: #{e.message}" }
+      end
     end
 
     def self.parse_string(*possible_values)
