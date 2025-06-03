@@ -4,5 +4,4 @@ source 'https://rubygems.org' do
   # matching our current backend setup
   gem "elasticsearch", "~> 7.17"
   gem "faraday-typhoeus", "~> 1.1"
-  gem "pry-debugger-jruby", "~> 2.1"
 end

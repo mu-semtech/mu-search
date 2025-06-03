@@ -413,7 +413,8 @@ get "/indexes" do
       is_eager_index: index.is_eager_index,
       allowed_groups: index.allowed_groups,
       status: index.status,
-      document_count: elastic_stats['indices'][index.name]['total']['docs']['count']
+      document_count: elastic_stats.dig('indices', index.name, 'total', 'docs', 'count'),
+      exists_in_elasticsearch: elastic_stats.dig('indices', index.name).nil? ? false : true
     }
   end
   response.to_json
