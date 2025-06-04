@@ -1,11 +1,3 @@
-require 'net/http'
-require 'digest'
-require 'set'
-require 'request_store'
-require 'listen'
-require 'singleton'
-require 'base64'
-require 'open3'
 require 'webrick'
 
 require_relative 'lib/logger.rb'
@@ -20,10 +12,11 @@ require_relative 'lib/mu_search/document_builder.rb'
 require_relative 'lib/mu_search/index_builder.rb'
 require_relative 'lib/mu_search/search_index.rb'
 require_relative 'lib/mu_search/index_manager.rb'
-require_relative 'framework/elastic.rb'
+require_relative 'lib/mu_search/elastic.rb'
 require_relative 'framework/elastic_query_builder.rb'
 require_relative 'framework/tika.rb'
 require_relative 'framework/jsonapi.rb'
+
 
 ##
 # WEBrick setup
@@ -115,7 +108,7 @@ configure do
     logger: Mu::log
   )
 
-  elasticsearch = Elastic.new(
+  elasticsearch = MuSearch::Elastic.new(
     host: 'elasticsearch',
     port: 9200,
     logger: Mu::log
@@ -402,5 +395,28 @@ end
 # Health report
 # TODO Make this more descriptive - status of all indexes?
 get "/health" do
+  settings.index_manager.indexes.inspect
   { status: "up" }.to_json
+end
+
+get "/indexes" do
+  # grab index info from index_manager
+  # indexes are kept as indexes[type][serialized_allowed_groups] = actual_index_config (class SearchIndex)
+  # so we just extract actual_index_config with the line below
+  index_info = settings.index_manager.indexes.values.flatten.map{ |x| x.values }.flatten
+  elastic_stats = settings.elasticsearch.index_stats
+  response = []
+  index_info.each do |index|
+    response << {
+      uri: index.uri,
+      name: index.name,
+      type: index.type_name,
+      is_eager_index: index.is_eager_index,
+      allowed_groups: index.allowed_groups,
+      status: index.status,
+      document_count: elastic_stats.dig('indices', index.name, 'total', 'docs', 'count'),
+      exists_in_elasticsearch: elastic_stats.dig('indices', index.name).nil? ? false : true
+    }
+  end
+  response.to_json
 end

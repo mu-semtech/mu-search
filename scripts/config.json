@@ -1,0 +1,37 @@
+{
+  "version": "0.1",
+  "scripts": [
+    {
+    "documentation": {
+      "command": "generate-config",
+      "description": "generate a config file",
+      "arguments": []
+    },
+    "environment": {
+      "image": "nvdk/ruby-semantic-works-cli",
+      "interactive": true,
+      "script": "config-generator.rb",
+      "join_networks": true
+    },
+    "mounts": {
+      "app": "/app/"
+    }
+  },
+  {
+    "documentation": {
+      "command": "manage-indexes",
+      "description": "management interface for search indexes",
+      "arguments": []
+    },
+    "environment": {
+      "image": "nvdk/ruby-semantic-works-cli",
+      "interactive": true,
+      "script": "manage-indexes.rb",
+      "join_networks": true
+    },
+    "mounts": {
+      "app": "/app/"
+    }
+  }
+  ]
+}
