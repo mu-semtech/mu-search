@@ -1088,6 +1088,7 @@ This section gives an overview of all options that are configurable via environm
 - **MAX_REQUEST_HEADER_LENGTH** : maximum length of the headers of an incoming request. Defaults to 1024000.
 - **MAXIMUM_FILE_SIZE** : maximum size in bytes of files to extract and index content from. Defaults to 209715200.
 - **ELASTIC_READ_TIMEOUT** : timeout in seconds of requests to Elasticsearch. Defaults to 180.
+- **MAX_YAML_SIZE**: Set the code point limit for the psych yaml parser (in bytes), affects the maximum queue size that can be stored (and read). defaults to 20_000_000 bytes.
 
 ## Discussions
 ### Why a custom Elasticsearch docker image?
