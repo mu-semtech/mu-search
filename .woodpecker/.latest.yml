@@ -1,4 +1,4 @@
-pipeline:
+steps:
   changelog:
     image: bitnami/git
     commands:
@@ -11,8 +11,11 @@ pipeline:
       platforms: linux/amd64, linux/arm64
       repo: "${CI_REPO_OWNER##mu-}/${CI_REPO_NAME}"
       tags: latest
-    secrets: [docker_username, docker_password]
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
 when:
-  event: push
-  branch: [master, main]
+  - event: push
+    branch: [master, main]
 
