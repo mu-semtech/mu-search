@@ -25,12 +25,12 @@ def delete_index(index, prompt)
   type = index['type']
   allowed_groups = index['allowed_groups']
   url = "#{BASE_URL}/#{type}"
-  
-  headers = { 
+
+  headers = {
     'Accept' => 'application/json',
     'Mu-Auth-Allowed-Groups' => JSON.generate(allowed_groups)
   }
-  
+
   response = Typhoeus.delete(url, headers: headers)
 
   if response.success?
@@ -52,12 +52,12 @@ def update_index(index, prompt)
   type = index['type']
   allowed_groups = index['allowed_groups']
   url = "#{BASE_URL}/#{type}/index"
-  
-  headers = { 
+
+  headers = {
     'Accept' => 'application/json',
     'Mu-Auth-Allowed-Groups' => JSON.generate(allowed_groups)
   }
-  
+
   response = Typhoeus.post(url, headers: headers)
 
   if response.success?
@@ -95,7 +95,7 @@ chosen_index = prompt.select("Choose an index:", options)
 # Show available actions for the chosen index
 action = prompt.select("What would you like to do with this index?") do |menu|
   menu.choice 'Delete index', :delete
-  menu.choice 'Index/Update', :index
+  menu.choice 'Update index (reindex)', :index
   menu.choice 'Exit', :exit
 end
 
