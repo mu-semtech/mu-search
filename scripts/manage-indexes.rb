@@ -4,7 +4,6 @@ require 'tty-prompt'
 require 'typhoeus'
 require 'json'
 
-BASE_URL = 'http://search'
 
 def get_indexes
   url = "#{BASE_URL}/indexes"
@@ -79,6 +78,8 @@ end
 
 prompt = TTY::Prompt.new
 prompt.say("\n\n")
+BASE_URL = prompt.ask("Enter base URL:", default: 'http://search')
+
 indexes = get_indexes
 options = indexes.map do |index|
   document_count = index['document_count']
