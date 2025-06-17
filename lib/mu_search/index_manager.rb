@@ -388,7 +388,12 @@ module MuSearch
     # Removes the index from the triplestore, Elasticsearch
     # and the in-memory indexes cache of the IndexManager.
     def remove_index(index)
-      @indexes.delete(index)
+      type = index.type_name
+      group_key = serialize_authorization_groups(index.allowed_groups)
+      if @indexes[type]
+        @indexes[type].delete(group_key)
+        @indexes.delete(type) if @indexes[type].empty?
+      end
       remove_index_by_name(index.name)
     end
 
