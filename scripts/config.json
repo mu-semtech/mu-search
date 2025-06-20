@@ -1,0 +1,21 @@
+{
+  "version": "0.1",
+  "scripts": [
+  {
+    "documentation": {
+      "command": "manage-indexes",
+      "description": "management interface for search indexes",
+      "arguments": []
+    },
+    "environment": {
+      "image": "nvdk/ruby-semantic-works-cli:1.0.0",
+      "interactive": true,
+      "script": "manage-indexes.rb",
+      "join_networks": true
+    },
+    "mounts": {
+      "app": "/app/"
+    }
+  }
+  ]
+}
