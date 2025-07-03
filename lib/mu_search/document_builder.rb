@@ -91,7 +91,7 @@ module MuSearch
       escaped_source_uri = Mu::sparql_escape_uri(uri)
 
       construct_portion_list = property_query_info.map do |info|
-        escaped_construct_uri = Mu::sparql_escape_uri(info[:construct_uri]),
+        escaped_construct_uri = Mu::sparql_escape_uri(info[:construct_uri])
         "#{escaped_construct_uri} #{escaped_value_prop} #{info[:sparql_where_variable]}."
       end
 
@@ -236,7 +236,7 @@ SPARQL
         file.close
         file_hash = Digest::SHA256.hexdigest blob
         cached_file_path = "#{@cache_path_base}#{file_hash}"
-        if File.exists? cached_file_path
+        if File.exist? cached_file_path
           text_content = File.open(cached_file_path, mode: "rb", encoding: 'utf-8') do |file|
             @logger.debug("TIKA") { "Using cached result #{cached_file_path} for file #{file_path}" }
             file.read
@@ -298,10 +298,9 @@ SPARQL
           a_val.concat(b_val).uniq
         elsif a_val.is_a?(Array) && (b_val.is_a?(String) || b_val.is_a?(Integer) || b_val.is_a?(Float))
           [*a_val, b_val].uniq
-        elsif a_val.is_a?(Hash)
-          # b_val must also be a hash
+        elsif a_val.is_a?(Hash) && b_val.is_a?(Hash)
           smart_merge(a_val, b_val)
-        elsif  b_val.is_a?(Array) && (b_val.is_a?(String) || b_val.is_a?(Integer) || b_val.is_a?(Float))
+        elsif  b_val.is_a?(Array) && (a_val.is_a?(String) || a_val.is_a?(Integer) || a_val.is_a?(Float))
           # a_val can not be nil or an array, so must be a simple value
           [*b_val, a_val].uniq
         elsif (a_val.is_a?(String) || a_val.is_a?(Integer) || a_val.is_a?(Float)) &&
