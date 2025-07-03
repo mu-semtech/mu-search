@@ -4,7 +4,7 @@ steps:
     environment:
       RACK_ENV: test
     commands:
-      - cp -r /woodpecker/src/* /app/
+      - cp -r . /app/
       - cd /usr/src/app
       - bundle install
       - rspec
