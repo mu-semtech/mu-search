@@ -1,3 +1,5 @@
+require_relative './prefix_utils'
+
 module MuSearch
   # This class represents index definitions as defined in the configuration file of mu-search
   # in the config file you will find these definitions on the the keyword "types"
@@ -58,23 +60,34 @@ module MuSearch
 
     # builds a tuples mapping the index name to the full definition for all provided types
     # expects all types as param
-    def self.from_json_config(all_definitions)
+    def self.from_json_config(all_definitions, prefixes = {})
       all_definitions.collect do |definition|
         name = definition["type"]
         composite_types = []
         if definition["composite_types"]
           composite_types = create_composite_sub_definitions(definition, all_definitions)
           composite_types.each do |definition|
-            ensure_uuid_in_properties definition.properties
+            build_property_definitions(definition.properties, prefixes)
           end
         else
           # ensure uuid is included because it may be used for folding
-          ensure_uuid_in_properties definition["properties"]
+          build_property_definitions(definition["properties"], prefixes)
         end
+
+        # Expand prefixes in rdf_type if present
+        rdf_type = definition["rdf_type"]
+        if rdf_type
+          if rdf_type.is_a?(Array)
+            rdf_type = rdf_type.map { |t| PrefixUtils.expand_prefix(t, prefixes) }
+          else
+            rdf_type = PrefixUtils.expand_prefix(rdf_type, prefixes)
+          end
+        end
+
         index_definition = IndexDefinition.new(
           name: name,
           on_path: definition["on_path"],
-          rdf_type: definition["rdf_type"],
+          rdf_type: rdf_type,
           composite_types: composite_types,
           properties: definition["properties"],
           mappings: definition["mappings"],
@@ -84,14 +97,18 @@ module MuSearch
       end
     end
 
-    def self.ensure_uuid_in_properties properties
-      properties["uuid"] = ["http://mu.semte.ch/vocabularies/core/uuid"] unless properties.key?("uuid")
+    def self.build_property_definitions(properties, prefixes)
+      ensure_uuid_property(properties)
       properties.each do |(key, value)|
-        property_definition = PropertyDefinition.from_json_config(key, value)
+        property_definition = PropertyDefinition.from_json_config(key, value, prefixes)
         if property_definition.type == "nested"
-          ensure_uuid_in_properties value["properties"]
+          build_property_definitions(value["properties"], prefixes)
         end
       end
+    end
+
+    def self.ensure_uuid_property(properties)
+      properties["uuid"] = ["http://mu.semte.ch/vocabularies/core/uuid"] unless properties.key?("uuid")
     end
 
     def type
