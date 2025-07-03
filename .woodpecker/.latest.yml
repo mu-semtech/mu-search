@@ -1,4 +1,13 @@
 steps:
+  test:
+    image: semtech/mu-jruby-template
+    environment:
+      RACK_ENV: test
+    commands:
+      - cp -r /woodpecker/src/* /app/
+      - cd /usr/src/app
+      - bundle install
+      - rspec
   changelog:
     image: bitnami/git
     commands:
