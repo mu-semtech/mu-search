@@ -23,9 +23,11 @@ require_relative 'framework/jsonapi.rb'
 ##
 max_uri_length = ENV["MAX_REQUEST_URI_LENGTH"].to_i > 0 ? ENV["MAX_REQUEST_URI_LENGTH"].to_i : 10240
 Mu::log.info("SETUP") { "Set WEBrick MAX_URI_LENGTH to #{max_uri_length}" }
+WEBrick::HTTPRequest.send(:remove_const, :MAX_URI_LENGTH) if defined?(WEBrick::HTTPRequest::MAX_URI_LENGTH)
 WEBrick::HTTPRequest.const_set("MAX_URI_LENGTH", max_uri_length)
 max_header_length = ENV["MAX_REQUEST_HEADER_LENGTH"].to_i > 0 ? ENV["MAX_REQUEST_HEADER_LENGTH"].to_i : 1024000
 Mu::log.info("SETUP") { "Set WEBrick MAX_HEADER_LENGTH to #{max_header_length}" }
+WEBrick::HTTPRequest.send(:remove_const, :MAX_HEADER_LENGTH) if defined?(WEBrick::HTTPRequest::MAX_HEADER_LENGTH)
 WEBrick::HTTPRequest.const_set("MAX_HEADER_LENGTH", max_header_length)
 max_yaml_size = ENV["MAX_YAML_SIZE"].to_i > 0 ? ENV["MAX_YAML_SIZE"].to_i : 20_000_000
 Psych::Parser.code_point_limit= max_yaml_size
