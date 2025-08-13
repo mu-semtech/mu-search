@@ -13,10 +13,9 @@ require_relative 'lib/mu_search/index_builder.rb'
 require_relative 'lib/mu_search/search_index.rb'
 require_relative 'lib/mu_search/index_manager.rb'
 require_relative 'lib/mu_search/elastic.rb'
+require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
-require_relative 'framework/tika.rb'
 require_relative 'framework/jsonapi.rb'
-
 
 ##
 # WEBrick setup
@@ -104,7 +103,7 @@ configure do
   configuration = MuSearch::ConfigParser.parse('/config/config.json')
   set configuration
 
-  tika = Tika.new(
+  tika = MuSearch::Tika::Client.new(
     host: 'tika',
     port: 9998,
     logger: Mu::log
