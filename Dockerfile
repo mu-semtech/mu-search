@@ -1,4 +1,4 @@
-FROM semtech/mu-jruby-template
+FROM semtech/mu-jruby-template:feature-upgrade-ruby-jruby-and-sinatra
 
 LABEL maintainer="redpencil <info@redpencil.io>"
 # 200MB
