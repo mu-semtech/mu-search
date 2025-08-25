@@ -3,14 +3,14 @@ require_relative '../lib/mu_search/document_builder.rb'
 RSpec.describe MuSearch::DocumentBuilder do
   let(:logger) { double('Logger', debug: nil, warn: nil, info: nil) }
   let(:sparql_client) { double('SparqlClient') }
-  let(:tika) { double('Tika') }
+  let(:tika_connection_pool) { double('Tika') }
   let(:attachment_path_base) { '/tmp/attachments' }
 
   subject(:builder) do
     described_class.new(
       logger: logger,
       sparql_client: sparql_client,
-      tika: tika,
+      tika_connection_pool: tika_connection_pool,
       attachment_path_base: attachment_path_base
     )
   end
