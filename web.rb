@@ -1,4 +1,5 @@
 require 'webrick'
+require 'connection_pool'
 
 require_relative 'lib/logger.rb'
 require_relative 'lib/sparql-client.rb'
@@ -43,7 +44,7 @@ end
 ##
 # Setup index manager based on configuration
 ##
-def setup_index_manager(elasticsearch, tika, sparql_connection_pool, config)
+def setup_index_manager(elasticsearch, tika_connection_pool, sparql_connection_pool, config)
   search_configuration = config.select do |key|
     [:type_definitions, :default_index_settings,
      :persist_indexes, :eager_indexing_groups, :number_of_threads,
@@ -54,7 +55,7 @@ def setup_index_manager(elasticsearch, tika, sparql_connection_pool, config)
   MuSearch::IndexManager.new(
     logger: Mu::log,
     elasticsearch: elasticsearch,
-    tika: tika,
+    tika_connection_pool: tika_connection_pool,
     sparql_connection_pool: sparql_connection_pool,
     search_configuration: search_configuration)
 end
@@ -62,7 +63,7 @@ end
 ##
 # Setup delta handling based on configuration
 ##
-def setup_delta_handling(index_manager, elasticsearch, tika, sparql_connection_pool, config)
+def setup_delta_handling(index_manager, elasticsearch, tika_connection_pool, sparql_connection_pool, config)
   if config[:automatic_index_updates]
     search_configuration = config.select do |key|
       [:type_definitions, :number_of_threads, :update_wait_interval_minutes,
@@ -72,7 +73,7 @@ def setup_delta_handling(index_manager, elasticsearch, tika, sparql_connection_p
       logger: Mu::log,
       index_manager: index_manager,
       elasticsearch: elasticsearch,
-      tika: tika,
+      tika_connection_pool: tika_connection_pool,
       sparql_connection_pool: sparql_connection_pool,
       search_configuration: search_configuration)
   else
@@ -103,11 +104,12 @@ configure do
   configuration = MuSearch::ConfigParser.parse('/config/config.json')
   set configuration
 
-  tika = MuSearch::Tika::Client.new(
-    host: 'tika',
-    port: 9998,
-    logger: Mu::log
-  )
+  number_of_threads = configuration[:number_of_threads]
+
+  tika_connection_pool = ::ConnectionPool.new(size: number_of_threads, timeout: 3) do
+    MuSearch::Tika::Client.new(host: 'tika', port: 9998, logger: Mu::log)
+  end
+  Mu::log.info("SETUP") { "Setup Tika connection pool with #{tika_connection_pool.size} connections. #{tika_connection_pool.available} connections are available." }
 
   elasticsearch = MuSearch::Elastic.new(
     host: 'elasticsearch',
@@ -117,7 +119,7 @@ configure do
   set :elasticsearch, elasticsearch
 
   sparql_connection_pool = MuSearch::SPARQL::ConnectionPool.new(
-    number_of_threads: configuration[:number_of_threads],
+    number_of_threads: number_of_threads,
     logger: Mu::log
   )
 
@@ -131,9 +133,9 @@ configure do
     sleep 1
   end
 
-  index_manager = setup_index_manager elasticsearch, tika, sparql_connection_pool, configuration
+  index_manager = setup_index_manager elasticsearch, tika_connection_pool, sparql_connection_pool, configuration
   set :index_manager, index_manager
-  delta_handler = setup_delta_handling index_manager, elasticsearch, tika, sparql_connection_pool, configuration
+  delta_handler = setup_delta_handling index_manager, elasticsearch, tika_connection_pool, sparql_connection_pool, configuration
   set :delta_handler, delta_handler
 end
 

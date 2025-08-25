@@ -10,10 +10,10 @@ module MuSearch
   class IndexManager
     attr_reader :indexes, :ignored_allowed_groups
 
-    def initialize(logger:, elasticsearch:, tika:, sparql_connection_pool:, search_configuration:)
+    def initialize(logger:, elasticsearch:, tika_connection_pool:, sparql_connection_pool:, search_configuration:)
       @logger = logger
       @elasticsearch = elasticsearch
-      @tika = tika
+      @tika_connection_pool = tika_connection_pool
       @sparql_connection_pool = sparql_connection_pool
       @master_mutex = Mutex.new
       @configuration = search_configuration
@@ -378,7 +378,7 @@ module MuSearch
       builder = MuSearch::IndexBuilder.new(
         logger: @logger,
         elasticsearch: @elasticsearch,
-        tika: @tika,
+        tika_connection_pool: @tika_connection_pool,
         sparql_connection_pool: @sparql_connection_pool,
         search_index: index,
         search_configuration: search_configuration)
