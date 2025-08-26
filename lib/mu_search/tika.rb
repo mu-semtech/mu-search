@@ -39,7 +39,7 @@ module MuSearch
           text = response.body
           @logger.debug("TIKA") { "Text extraction of #{file_path} using Tika succeeded." }
           text
-        elsif response.status = 422 # HTTPUnprocessableEntity
+        elsif response.status == 422 # HTTPUnprocessableEntity
           @logger.warn("TIKA") { "Tika returned [#{response.status} #{response.reason_phrase}] to extract text for file #{file_path}. The file may be encrypted. Check the Tika logs for additional info." }
           nil
         else
