@@ -21,7 +21,7 @@ services:
     volumes:
       - ./config/search:/config
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.1.0
+    image: semtech/mu-search-elastic-backend:1.2.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
     environment:
@@ -90,7 +90,7 @@ First, make sure the search indexes are written to a mounted volume by specifyin
 ```yml
 services:
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.1.0
+    image: semtech/mu-search-elastic-backend:1.2.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
 ```
@@ -212,12 +212,12 @@ services:
   elasticsearch:
     ...
   tika:
-    image: apache/tika:1.25-full
+    image: semtech/mu-search-tika-backend:1.0.0
 ```
 
 Next, add the following mounted volumes to the mu-search service in `docker-compose.yml`:
 - `/data`: folder containing the files to be indexed
-- `/cache`: folder to persist Tika's search cache
+- `/cache`: folder to persist Tika's text extraction cache
 
 ```yml
 services:
@@ -274,9 +274,11 @@ The content of a search index can be inspected by running a [Kibana](https://www
 ```yaml
 services:
   kibana:
-    image: docker.elastic.co/kibana/kibana-oss:7.6.2
+    image: docker.elastic.co/kibana/kibana:7.17.0
+    environment:
+      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
     ports:
-      - 127.0.0.1:5601:5601
+      - "5601:5601"
     user: root
     command: |
       sh -c "/usr/local/bin/kibana-docker --allow-root;"
