@@ -1,5 +1,6 @@
 require 'faraday'
 require 'faraday/retry'
+require 'faraday/typhoeus'
 
 module MuSearch
   module Tika
@@ -9,7 +10,11 @@ module MuSearch
         @base_url = "http://#{host}:#{port.to_s}/"
         retry_options = {
           max: 6,
-          retry_statuses: [429], # Too many requests
+          interval: 1,
+          interval_randomness: 0.5,
+          backoff_factor: 2,
+          retry_statuses: [429, 503], # Too many requests, Service unavailable
+          exceptions: Faraday::Retry::Middleware::DEFAULT_EXCEPTIONS + [Faraday::ConnectionFailed],
           retry_block: -> (env:, retry_count:, will_retry_in:, options:, exception:) {
             @logger.info("TIKA") { "Failed to run request #{env.method.upcase} #{env.url} (retry #{retry_count + 1}). Request will be retried." }
           },
@@ -20,6 +25,7 @@ module MuSearch
         }
         @connection = Faraday.new(@base_url) do |faraday|
           faraday.request :retry, retry_options
+          faraday.adapter :typhoeus
         end
       end
 
