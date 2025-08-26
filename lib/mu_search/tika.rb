@@ -43,6 +43,10 @@ module MuSearch
 
         if response.success?
           text = response.body
+          content_type = response.headers["content-type"]
+          if text && content_type && content_type.downcase.include?("charset=utf-8")
+            text.force_encoding("utf-8")
+          end
           @logger.debug("TIKA") { "Text extraction of #{file_path} using Tika succeeded." }
           text
         elsif response.status == 422 # HTTPUnprocessableEntity
