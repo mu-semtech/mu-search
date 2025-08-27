@@ -1,6 +1,8 @@
 FROM semtech/mu-jruby-template:3.2.0
 
 LABEL maintainer="redpencil <info@redpencil.io>"
+
+ENV USE_LEGACY_UTILS=false
 # 200MB
 ENV MAXIMUM_FILE_SIZE="209715200"
 # seconds
