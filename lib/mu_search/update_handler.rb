@@ -121,7 +121,7 @@ module MuSearch
 
     # Initializes the update queue and ensures the queue is persisted on disk at regular intervals
     def restore_queue_and_setup_persistence
-      @store = YAML::Store.new("/config/update-handler.store", true)
+      @store = YAML::Store.new("/data/update-handler.store", true)
       @store.transaction do
         @queue = @store.fetch("queue", [])
         @subject_map = @subject_map.merge(@store.fetch("index", {}))
