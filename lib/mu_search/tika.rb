@@ -1,9 +1,36 @@
 require 'faraday'
 require 'faraday/retry'
 require 'faraday/typhoeus'
+require 'connection_pool'
 
 module MuSearch
   module Tika
+    class ConnectionPool
+      @instance = nil
+
+      def self.setup(size: 4)
+        @instance = ::ConnectionPool.new(size: size, timeout: 3) do
+          MuSearch::Tika::Client.new(host: 'tika', port: 9998, logger: Mu::log)
+        end
+        Mu::log.info("SETUP") { "Setup Tika connection pool with #{@instance.size} connections. #{@instance.available} connections are available." }
+      end
+
+      def self.instance
+        if @instance
+          @instance
+        else
+          raise "Tika connection pool not yet initialized. Please call MuSearch::Tika::ConnectionPool.setup() first"
+        end
+      end
+
+      def self.with_client
+        instance.with do |client|
+          Mu::log.debug("TIKA") { "Get Tika connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
+          yield client
+        end
+      end
+    end
+
     class Client
       def initialize(host: "tika", port: 9998, logger:)
         @logger = logger

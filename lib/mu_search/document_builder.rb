@@ -6,8 +6,7 @@ module MuSearch
   ##
   # This class is responsible for building JSON documents from an IndexDefinition
   class DocumentBuilder
-    def initialize(tika_connection_pool:, sparql_client:, attachment_path_base:, logger:)
-      @tika_connection_pool = tika_connection_pool
+    def initialize(sparql_client:, attachment_path_base:, logger:)
       @sparql_client = sparql_client # authorized client from connection pool
       @attachment_path_base = attachment_path_base
       @cache_path_base = "/cache/"
@@ -242,7 +241,7 @@ SPARQL
             file.read
           end
         else
-          @tika_connection_pool.with do |tika|
+          MuSearch::Tika::ConnectionPool.with_client do |tika|
             text_content = tika.extract_text file_path, blob
             if text_content.nil?
               @logger.info("TIKA") { "Received empty result from Tika for file #{file_path}. File content will not be indexed." }

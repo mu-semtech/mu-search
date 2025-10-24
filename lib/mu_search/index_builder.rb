@@ -3,10 +3,9 @@ require 'concurrent'
 
 module MuSearch
   class IndexBuilder
-    def initialize(logger:, elasticsearch:, tika_connection_pool:, sparql_connection_pool:, search_index:, search_configuration:)
+    def initialize(logger:, elasticsearch:, sparql_connection_pool:, search_index:, search_configuration:)
       @logger = logger
       @elasticsearch = elasticsearch
-      @tika_connection_pool = tika_connection_pool
       @sparql_connection_pool = sparql_connection_pool
       @search_index = search_index
 
@@ -51,7 +50,6 @@ module MuSearch
         failed_documents = []
         @sparql_connection_pool.with_authorization(@search_index.allowed_groups) do |sparql_client|
           document_builder = MuSearch::DocumentBuilder.new(
-            tika_connection_pool: @tika_connection_pool,
             sparql_client: sparql_client,
             attachment_path_base: @attachment_path_base,
             logger: @logger

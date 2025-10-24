@@ -14,9 +14,8 @@ module MuSearch
   class AutomaticUpdateHandler < MuSearch::UpdateHandler
     ##
     # creates an automatic update handler
-    def initialize(elasticsearch:, tika_connection_pool:, sparql_connection_pool:, search_configuration:, **args)
+    def initialize(elasticsearch:, sparql_connection_pool:, search_configuration:, **args)
       @elasticsearch = elasticsearch
-      @tika_connection_pool = tika_connection_pool
       @sparql_connection_pool = sparql_connection_pool
       @type_definitions = search_configuration[:type_definitions]
       @attachment_path_base = search_configuration[:attachment_path_base]
@@ -68,7 +67,6 @@ module MuSearch
       end
       @sparql_connection_pool.with_authorization(allowed_groups) do |sparql_client|
         document_builder = MuSearch::DocumentBuilder.new(
-          tika_connection_pool: @tika_connection_pool,
           sparql_client: sparql_client,
           attachment_path_base: @attachment_path_base,
           logger: @logger
