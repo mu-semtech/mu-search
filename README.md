@@ -278,7 +278,7 @@ services:
     environment:
       ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
     ports:
-      - "5601:5601"
+      - 127.0.0.1:5601:5601
     user: root
     command: |
       sh -c "/usr/local/bin/kibana-docker --allow-root;"
