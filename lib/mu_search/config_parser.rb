@@ -16,6 +16,7 @@ module MuSearch
         eager_indexing_groups: [],
         update_wait_interval_minutes: 1,
         number_of_threads: 1,
+        connection_pool_size: 20,
         enable_raw_dsl_endpoint: false
       }
 
@@ -33,7 +34,8 @@ module MuSearch
         { name: "attachments_path_base", parser: :parse_string },
         { name: "common_terms_cutoff_frequency", parser: :parse_float },
         { name: "update_wait_interval_minutes", parser: :parse_float },
-        { name: "number_of_threads", parser: :parse_integer }
+        { name: "number_of_threads", parser: :parse_integer },
+        { name: "connection_pool_size", parser: :parse_integer }
       ].each do |setting|
         name = setting[:name]
         value = self.send(setting[:parser], ENV[name.upcase], json_config[name])

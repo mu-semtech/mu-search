@@ -98,13 +98,13 @@ configure do
   configuration = MuSearch::ConfigParser.parse('/config/config.json')
   set configuration
 
-  number_of_threads = configuration[:number_of_threads]
-  MuSearch::Tika::ConnectionPool.setup(size: number_of_threads)
+  connection_pool_size = configuration[:connection_pool_size]
+  MuSearch::Tika::ConnectionPool.setup(size: connection_pool_size)
 
-  elasticsearch = MuSearch::Elastic.new(size: number_of_threads)
+  elasticsearch = MuSearch::Elastic.new(size: connection_pool_size)
   set :elasticsearch, elasticsearch
 
-  MuSearch::SPARQL::ConnectionPool.setup(size: number_of_threads)
+  MuSearch::SPARQL::ConnectionPool.setup(size: connection_pool_size)
 
   until elasticsearch.up?
     Mu::log.info("SETUP") { "...waiting for elasticsearch..." }

@@ -1044,6 +1044,7 @@ This section gives an overview of all configurable options in the search configu
 - (*) **batch_size** : number of documents loaded from the RDF store and indexed together in a single batch. Defaults to 100.
 - (*) **max_batches** : maximum number of batches to index. May result in an incomplete index and should therefore only be used during development. Defaults to 1.
 - (*) **number_of_threads** : number of threads to use during indexing. Defaults to 1.
+- (*) **connection_pool_size** : number of connections in the SPARQL/Elasticsearch/Tika connection pools. Defaults to 20. Typically increased up to 200 on systems with heavy load.
 - (*) **update_wait_interval_minutes** : number of minutes to wait before applying an update. Allows to prevent duplicate updates of the same documents. Defaults to 1.
 - (*) **common_terms_cutoff_frequency** : default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). Defaults to 0.0001. See [supported search methods](#supported-search-methods).
 - (*) **enable_raw_dsl_endpoint** : flag to enable the [raw Elasticsearch DSL endpoint](#api). This endpoint is disabled by default for security reasons.
