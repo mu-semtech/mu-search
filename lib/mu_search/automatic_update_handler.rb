@@ -14,9 +14,8 @@ module MuSearch
   class AutomaticUpdateHandler < MuSearch::UpdateHandler
     ##
     # creates an automatic update handler
-    def initialize(elasticsearch:, sparql_connection_pool:, search_configuration:, **args)
+    def initialize(elasticsearch:, search_configuration:, **args)
       @elasticsearch = elasticsearch
-      @sparql_connection_pool = sparql_connection_pool
       @type_definitions = search_configuration[:type_definitions]
       @attachment_path_base = search_configuration[:attachment_path_base]
 
@@ -65,7 +64,7 @@ module MuSearch
       @logger.info("UPDATE HANDLER") do
         "Document <#{uri}> needs to be updated in index #{index.name} for '#{index_definition.name}' and allowed groups #{allowed_groups}"
       end
-      @sparql_connection_pool.with_authorization(allowed_groups) do |sparql_client|
+      MuSearch::SPARQL::ConnectionPool.with_authorization(allowed_groups) do |sparql_client|
         document_builder = MuSearch::DocumentBuilder.new(
           sparql_client: sparql_client,
           attachment_path_base: @attachment_path_base,
@@ -90,7 +89,7 @@ module MuSearch
     ##
     # assumes rdf_types is an array
     def document_exists_for?(allowed_groups, uri, rdf_types)
-      @sparql_connection_pool.with_authorization(allowed_groups) do |sparql_client|
+      MuSearch::SPARQL::ConnectionPool.with_authorization(allowed_groups) do |sparql_client|
         rdf_types_string = rdf_types.map { |type| Mu::sparql_escape_uri(type) }.join(',')
         sparql_client.query "ASK {#{Mu::sparql_escape_uri(uri)} a ?type. filter(?type in(#{rdf_types_string})) }"
       end

@@ -25,7 +25,7 @@ module MuSearch
 
       def self.with_client
         instance.with do |client|
-          Mu::log.debug("TIKA") { "Get Tika connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
+          Mu::log.debug("TIKA") { "Claim Tika connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
           yield client
         end
       end

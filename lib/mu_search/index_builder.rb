@@ -3,10 +3,9 @@ require 'concurrent'
 
 module MuSearch
   class IndexBuilder
-    def initialize(logger:, elasticsearch:, sparql_connection_pool:, search_index:, search_configuration:)
+    def initialize(logger:, elasticsearch:, search_index:, search_configuration:)
       @logger = logger
       @elasticsearch = elasticsearch
-      @sparql_connection_pool = sparql_connection_pool
       @search_index = search_index
 
       @configuration = search_configuration
@@ -48,7 +47,7 @@ module MuSearch
         batch_start_time = Time.now
         @logger.info("INDEXING") { "Indexing batch #{i}/#{batches}" }
         failed_documents = []
-        @sparql_connection_pool.with_authorization(@search_index.allowed_groups) do |sparql_client|
+        MuSearch::SPARQL::ConnectionPool.with_authorization(@search_index.allowed_groups) do |sparql_client|
           document_builder = MuSearch::DocumentBuilder.new(
             sparql_client: sparql_client,
             attachment_path_base: @attachment_path_base,
@@ -78,7 +77,7 @@ module MuSearch
 
     private
     def count_documents(types)
-      @sparql_connection_pool.with_authorization(@search_index.allowed_groups) do |client|
+      MuSearch::SPARQL::ConnectionPool.with_authorization(@search_index.allowed_groups) do |client|
         type_string = types.map{ |type| Mu::sparql_escape_uri(type) }.join(',')
         query = "SELECT (COUNT(?doc) as ?count) WHERE { ?doc a ?type. filter(?type in(#{type_string})) }"
         result = client.query(query)
@@ -90,7 +89,7 @@ module MuSearch
     def get_documents_for_batch(types, batch_i)
       offset = (batch_i - 1) * @batch_size
       type_string = types.map{ |type| Mu::sparql_escape_uri(type) }.join(',')
-      @sparql_connection_pool.with_authorization(@search_index.allowed_groups) do |client|
+      MuSearch::SPARQL::ConnectionPool.with_authorization(@search_index.allowed_groups) do |client|
         query = "SELECT DISTINCT ?doc WHERE { ?doc a ?type. filter(?type in(#{type_string}))  } LIMIT #{@batch_size} OFFSET #{offset}"
         result = client.query(query)
         document_uris = result.map { |r| r[:doc].to_s }

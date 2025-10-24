@@ -10,10 +10,9 @@ module MuSearch
   class IndexManager
     attr_reader :indexes, :ignored_allowed_groups
 
-    def initialize(logger:, elasticsearch:, sparql_connection_pool:, search_configuration:)
+    def initialize(logger:, elasticsearch:, search_configuration:)
       @logger = logger
       @elasticsearch = elasticsearch
-      @sparql_connection_pool = sparql_connection_pool
       @master_mutex = Mutex.new
       @configuration = search_configuration
       @indexes = {} # indexes per type
@@ -377,7 +376,6 @@ module MuSearch
       builder = MuSearch::IndexBuilder.new(
         logger: @logger,
         elasticsearch: @elasticsearch,
-        sparql_connection_pool: @sparql_connection_pool,
         search_index: index,
         search_configuration: search_configuration)
       builder.build
@@ -412,7 +410,7 @@ module MuSearch
     # NOTE this method does not check the current search configuration.
     #      It only removes indexes found in the triplestore and removes those.
     def remove_persisted_indexes
-      result = @sparql_connection_pool.sudo_query <<SPARQL
+      result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
 SELECT ?name WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex>;
@@ -446,7 +444,7 @@ SPARQL
       allowed_group_statement = allowed_groups.empty? ? "" : "search:hasAllowedGroup #{groups_term(allowed_groups)} ; "
       used_group_statement = used_groups.empty? ? "" : "search:hasUsedGroup #{groups_term(used_groups)} ; "
 
-      query_result = @sparql_connection_pool.sudo_update <<SPARQL
+      query_result = MuSearch::SPARQL::ConnectionPool.sudo_update <<SPARQL
   PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
   PREFIX search: <http://mu.semte.ch/vocabularies/authorization/>
   INSERT DATA {
@@ -467,7 +465,7 @@ SPARQL
     #
     #   - index_name: name of the index to remove
     def remove_index_from_triplestore(index_name)
-      @sparql_connection_pool.sudo_update <<SPARQL
+      MuSearch::SPARQL::ConnectionPool.sudo_update <<SPARQL
 DELETE {
   GRAPH <http://mu.semte.ch/authorization> {
     ?s ?p ?o .
@@ -486,7 +484,7 @@ SPARQL
     # Find index by name in the triplestore
     # Returns nil if none is found
     def find_index_in_triplestore_by_name(index_name)
-      result = @sparql_connection_pool.sudo_query <<SPARQL
+      result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
 SELECT ?index WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
@@ -506,7 +504,7 @@ SPARQL
     def get_indexes_from_triplestore_by_type(type_name)
       indexes = {}
 
-      query_result = @sparql_connection_pool.sudo_query <<SPARQL
+      query_result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
@@ -520,7 +518,7 @@ SPARQL
         uri = result["index"].to_s
         index_name = result["index_name"].to_s
 
-        allowed_groups_result = @sparql_connection_pool.sudo_query <<SPARQL
+        allowed_groups_result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         <#{uri}> <http://mu.semte.ch/vocabularies/authorization/hasAllowedGroup> ?group
@@ -529,7 +527,7 @@ SPARQL
 SPARQL
         allowed_groups = allowed_groups_result.map { |g| JSON.parse g["group"].to_s }
 
-        used_groups_result = @sparql_connection_pool.sudo_query <<SPARQL
+        used_groups_result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         <#{uri}> <http://mu.semte.ch/vocabularies/authorization/hasUsedGroup> ?group

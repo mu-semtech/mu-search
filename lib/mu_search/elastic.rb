@@ -313,7 +313,7 @@ module MuSearch
 
     def self.with_client
       instance.with do |client|
-        Mu::log.debug("ELASTICSEARCH") { "Get Elasticsearch connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
+        Mu::log.debug("ELASTICSEARCH") { "Claim Elasticsearch connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
         yield client
       end
     end

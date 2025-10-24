@@ -43,7 +43,7 @@ end
 ##
 # Setup index manager based on configuration
 ##
-def setup_index_manager(elasticsearch, sparql_connection_pool, config)
+def setup_index_manager(elasticsearch, config)
   search_configuration = config.select do |key|
     [:type_definitions, :default_index_settings,
      :persist_indexes, :eager_indexing_groups, :number_of_threads,
@@ -54,14 +54,13 @@ def setup_index_manager(elasticsearch, sparql_connection_pool, config)
   MuSearch::IndexManager.new(
     logger: Mu::log,
     elasticsearch: elasticsearch,
-    sparql_connection_pool: sparql_connection_pool,
     search_configuration: search_configuration)
 end
 
 ##
 # Setup delta handling based on configuration
 ##
-def setup_delta_handling(index_manager, elasticsearch, sparql_connection_pool, config)
+def setup_delta_handling(index_manager, elasticsearch, config)
   if config[:automatic_index_updates]
     search_configuration = config.select do |key|
       [:type_definitions, :number_of_threads, :update_wait_interval_minutes,
@@ -71,7 +70,6 @@ def setup_delta_handling(index_manager, elasticsearch, sparql_connection_pool, c
       logger: Mu::log,
       index_manager: index_manager,
       elasticsearch: elasticsearch,
-      sparql_connection_pool: sparql_connection_pool,
       search_configuration: search_configuration)
   else
     search_configuration = config.select do |key|
@@ -85,7 +83,6 @@ def setup_delta_handling(index_manager, elasticsearch, sparql_connection_pool, c
 
   delta_handler = MuSearch::DeltaHandler.new(
     logger: Mu::log,
-    sparql_connection_pool: sparql_connection_pool,
     update_handler: handler,
     search_configuration: { type_definitions: config[:type_definitions] })
   delta_handler
@@ -107,24 +104,21 @@ configure do
   elasticsearch = MuSearch::Elastic.new(size: number_of_threads)
   set :elasticsearch, elasticsearch
 
-  sparql_connection_pool = MuSearch::SPARQL::ConnectionPool.new(
-    number_of_threads: number_of_threads,
-    logger: Mu::log
-  )
+  MuSearch::SPARQL::ConnectionPool.setup(size: number_of_threads)
 
   until elasticsearch.up?
     Mu::log.info("SETUP") { "...waiting for elasticsearch..." }
     sleep 1
   end
 
-  until sparql_connection_pool.up?
+  until MuSearch::SPARQL::ConnectionPool.up?
     Mu::log.info("SETUP") { "...waiting for SPARQL endpoint..." }
     sleep 1
   end
 
-  index_manager = setup_index_manager elasticsearch, sparql_connection_pool, configuration
+  index_manager = setup_index_manager elasticsearch, configuration
   set :index_manager, index_manager
-  delta_handler = setup_delta_handling index_manager, elasticsearch, sparql_connection_pool, configuration
+  delta_handler = setup_delta_handling index_manager, elasticsearch, configuration
   set :delta_handler, delta_handler
 end
 

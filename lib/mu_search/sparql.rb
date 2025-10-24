@@ -1,40 +1,45 @@
+require 'connection_pool'
+
 module MuSearch
   module SPARQL
     class ClientWrapper
-      def initialize(logger:, sparql_client:, options:)
-        @logger = logger
+      def initialize(sparql_client:, options:)
         @sparql_client = sparql_client
         @options = options
       end
 
       def query(query_string)
-        @logger.debug("SPARQL") { "Executing query with #{@options.inspect}\n#{query_string}" }
+        Mu::log.debug("SPARQL") { "Executing query with #{@options.inspect}\n#{query_string}" }
         @sparql_client.query query_string, **@options
       end
 
       def update(query_string)
-        @logger.debug("SPARQL") { "Executing update with #{@options.inspect}\n#{query_string}" }
+        Mu::log.debug("SPARQL") { "Executing update with #{@options.inspect}\n#{query_string}" }
         @sparql_client.update query_string, **@options
       end
     end
 
     class ConnectionPool
-      ##
-      # default number of threads to use for indexing and update handling
-      DEFAULT_NUMBER_OF_THREADS = 2
+      @instance = nil
 
-      def initialize(logger:, number_of_threads:)
-        @logger = logger
-        number_of_threads = DEFAULT_NUMBER_OF_THREADS if number_of_threads <= 0
-        @sparql_connection_pool = ::ConnectionPool.new(size: number_of_threads, timeout: 3) do
+      def self.setup(size: 4)
+        @instance = ::ConnectionPool.new(size: size, timeout: 3) do
           ::SPARQL::Client.new(ENV['MU_SPARQL_ENDPOINT'])
         end
-        @logger.info("SETUP") { "Setup SPARQL connection pool with #{@sparql_connection_pool.size} connections." }
+        Mu::log.info("SETUP") { "Setup SPARQL connection pool with #{@instance.size} connections." }
       end
 
-      def up?
+      def self.instance
+        if @instance
+          @instance
+        else
+          raise "SPARQL connection pool not yet initialized. Please call MuSearch::SPARQL::ConnectionPool.setup() first"
+        end
+      end
+
+      def self.up?
         begin
-          sudo_query "ASK { ?s ?p ?o }", 1
+          self.sudo_query "ASK { ?s ?p ?o }", 1
         rescue StandardError => e
           false
         end
@@ -42,9 +47,9 @@ module MuSearch
 
       ##
       # perform an update with access to all data
-      def sudo_query(query_string, retries = 6)
+      def self.sudo_query(query_string, retries = 6)
         begin
-          with_sudo do |sudo_client|
+          self.with_sudo do |sudo_client|
             sudo_client.query query_string
           end
         rescue StandardError => e
@@ -52,7 +57,7 @@ module MuSearch
           if next_retries == 0
             raise e
           else
-            @logger.warn("SPARQL") { "Could not execute sudo query (attempt #{6 - next_retries}): #{query_string}" }
+            Mu::log.warn("SPARQL") { "Could not execute sudo query (attempt #{6 - next_retries}): #{query_string}" }
             timeout = (6 - next_retries)**2
             sleep timeout
             sudo_query query_string, next_retries
@@ -62,9 +67,9 @@ module MuSearch
 
       ##
       # perform an update with access to all data
-      def sudo_update(query_string, retries = 6)
+      def self.sudo_update(query_string, retries = 6)
         begin
-          with_sudo do |sudo_client|
+          self.with_sudo do |sudo_client|
             sudo_client.update query_string
           end
         rescue StandardError => e
@@ -72,7 +77,7 @@ module MuSearch
           if next_retries == 0
             raise e
           else
-            @logger.warn("SPARQL") { "Could not execute sudo query (attempt #{6 - next_retries}): #{query_string}" }
+            Mu::log.warn("SPARQL") { "Could not execute sudo query (attempt #{6 - next_retries}): #{query_string}" }
             timeout = (6 - next_retries)**2
             sleep timeout
             sudo_update query_string, next_retries
@@ -82,7 +87,7 @@ module MuSearch
 
       ##
       # provides a client from the connection pool with the given access rights
-      def with_authorization(allowed_groups, &block)
+      def self.with_authorization(allowed_groups, &block)
         sparql_options = {}
 
         if allowed_groups && allowed_groups.length > 0
@@ -90,21 +95,21 @@ module MuSearch
           sparql_options = { headers: { 'mu-auth-allowed-groups': allowed_groups_s } }
         end
 
-        with_options sparql_options, &block
-      end
-
-      ##
-      # provides a client from the connection pool with sudo access rights
-      def with_sudo(&block)
-        with_options({ headers: { 'mu-auth-sudo': 'true' } }, &block)
+        self.with_options sparql_options, &block
       end
 
       private
 
-      def with_options(sparql_options)
-        @sparql_connection_pool.with do |sparql_client|
-          @logger.debug("SPARQL") { "Claimed connection from pool. There are #{@sparql_connection_pool.available} connections left" }
-          client_wrapper = ClientWrapper.new(logger: @logger, sparql_client: sparql_client, options: sparql_options)
+      ##
+      # provides a client from the connection pool with sudo access rights
+      def self.with_sudo(&block)
+        self.with_options({ headers: { 'mu-auth-sudo': 'true' } }, &block)
+      end
+
+      def self.with_options(sparql_options)
+        self.instance.with do |sparql_client|
+          Mu::log.debug("SPARQL") { "Claimed SPARQL connection from pool. #{self.instance.available}/#{self.instance.size} connections are still available." }
+          client_wrapper = ClientWrapper.new(sparql_client: sparql_client, options: sparql_options)
           yield client_wrapper
         end
       end
