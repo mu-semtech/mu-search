@@ -29,7 +29,7 @@ module MuSearch
         @sparql_connection_pool = ::ConnectionPool.new(size: number_of_threads, timeout: 3) do
           ::SPARQL::Client.new(ENV['MU_SPARQL_ENDPOINT'])
         end
-        @logger.info("SETUP") { "Setup SPARQL connection pool with #{@sparql_connection_pool.size} connections. #{@sparql_connection_pool.size} connections are available." }
+        @logger.info("SETUP") { "Setup SPARQL connection pool with #{@sparql_connection_pool.size} connections." }
       end
 
       def up?

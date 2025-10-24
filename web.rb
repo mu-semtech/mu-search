@@ -104,11 +104,7 @@ configure do
   number_of_threads = configuration[:number_of_threads]
   MuSearch::Tika::ConnectionPool.setup(size: number_of_threads)
 
-  elasticsearch = MuSearch::Elastic.new(
-    host: 'elasticsearch',
-    port: 9200,
-    logger: Mu::log
-  )
+  elasticsearch = MuSearch::Elastic.new(size: number_of_threads)
   set :elasticsearch, elasticsearch
 
   sparql_connection_pool = MuSearch::SPARQL::ConnectionPool.new(

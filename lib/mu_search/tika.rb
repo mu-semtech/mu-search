@@ -12,7 +12,7 @@ module MuSearch
         @instance = ::ConnectionPool.new(size: size, timeout: 3) do
           MuSearch::Tika::Client.new(host: 'tika', port: 9998, logger: Mu::log)
         end
-        Mu::log.info("SETUP") { "Setup Tika connection pool with #{@instance.size} connections. #{@instance.available} connections are available." }
+        Mu::log.info("SETUP") { "Setup Tika connection pool with #{@instance.size} connections." }
       end
 
       def self.instance
