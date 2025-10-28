@@ -2,6 +2,9 @@
 ## Unreleased
 **Features**
 - added ignored groups: groups that should not be taken into account when searching
+- Tika connection pool using Faraday with retry
+- Elasticsearch connection pool
+- Connection pool size config option
 
 ## v0.10.0
 **Fixes**

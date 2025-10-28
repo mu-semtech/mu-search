@@ -21,7 +21,7 @@ services:
     volumes:
       - ./config/search:/config
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.1.0
+    image: semtech/mu-search-elastic-backend:1.2.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
     environment:
@@ -90,7 +90,7 @@ First, make sure the search indexes are written to a mounted volume by specifyin
 ```yml
 services:
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.1.0
+    image: semtech/mu-search-elastic-backend:1.2.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
 ```
@@ -212,12 +212,12 @@ services:
   elasticsearch:
     ...
   tika:
-    image: apache/tika:1.25-full
+    image: semtech/mu-search-tika-backend:1.0.0
 ```
 
 Next, add the following mounted volumes to the mu-search service in `docker-compose.yml`:
 - `/data`: folder containing the files to be indexed
-- `/cache`: folder to persist Tika's search cache
+- `/cache`: folder to persist Tika's text extraction cache
 
 ```yml
 services:
@@ -274,7 +274,9 @@ The content of a search index can be inspected by running a [Kibana](https://www
 ```yaml
 services:
   kibana:
-    image: docker.elastic.co/kibana/kibana-oss:7.6.2
+    image: docker.elastic.co/kibana/kibana:7.17.0
+    environment:
+      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
     ports:
       - 127.0.0.1:5601:5601
     user: root
@@ -1042,6 +1044,7 @@ This section gives an overview of all configurable options in the search configu
 - (*) **batch_size** : number of documents loaded from the RDF store and indexed together in a single batch. Defaults to 100.
 - (*) **max_batches** : maximum number of batches to index. May result in an incomplete index and should therefore only be used during development. Defaults to 1.
 - (*) **number_of_threads** : number of threads to use during indexing. Defaults to 1.
+- (*) **connection_pool_size** : number of connections in the SPARQL/Elasticsearch/Tika connection pools. Defaults to 20. Typically increased up to 200 on systems with heavy load.
 - (*) **update_wait_interval_minutes** : number of minutes to wait before applying an update. Allows to prevent duplicate updates of the same documents. Defaults to 1.
 - (*) **common_terms_cutoff_frequency** : default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). Defaults to 0.0001. See [supported search methods](#supported-search-methods).
 - (*) **enable_raw_dsl_endpoint** : flag to enable the [raw Elasticsearch DSL endpoint](#api). This endpoint is disabled by default for security reasons.
