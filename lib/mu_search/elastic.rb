@@ -14,7 +14,7 @@ module ElasticsearchMonkeyPatch
         response.headers['x-elastic-product'] = 'Elasticsearch'
         @verified = true
       rescue StandardError => e
-        Mu::log.info("SETUP") { "no reaction from elastic, retrying..." }
+        Mu::log.debug("SETUP") { "no reaction from elastic, retrying..." }
         next
       end
     end
@@ -41,11 +41,11 @@ module MuSearch
     #
     # Executes a health check and accepts either "green" or "yellow".
     def up?
-      Mu::log.info("SETUP") { "Checking if Elasticsearch is up..." }
+      Mu::log.debug("SETUP") { "Checking if Elasticsearch is up..." }
       MuSearch::ElasticConnectionPool.with_client do |es_client|
         begin
           health = es_client.cluster.health
-          Mu::log.info("SETUP") { "Elasticsearch cluster health: #{health["status"]}" }
+          Mu::log.debug("SETUP") { "Elasticsearch cluster health: #{health["status"]}" }
           health["status"] == "yellow" or health["status"] == "green"
         rescue
           false
@@ -324,7 +324,7 @@ module MuSearch
 
     def self.with_client
       instance.with do |client|
-        Mu::log.info("ELASTICSEARCH") { "Claim Elasticsearch connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
+        Mu::log.debug("ELASTICSEARCH") { "Claim Elasticsearch connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
         yield client
       end
     end

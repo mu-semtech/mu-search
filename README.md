@@ -1049,7 +1049,7 @@ This section gives an overview of all configurable options in the search configu
 - (*) **number_of_threads** : number of threads to use during indexing. Defaults to 1.
 - (*) **connection_pool_size** : number of connections in the SPARQL/Elasticsearch/Tika connection pools. Defaults to 20. Typically increased up to 200 on systems with heavy load.
 - (*) **update_wait_interval_minutes** : number of minutes to wait before applying an update. Allows to prevent duplicate updates of the same documents. Defaults to 1.
-- (*) **common_terms_cutoff_frequency** : [REMOVED] default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). This parameter was removed by elastic search and is now ignoredee [supported search methods](#supported-search-methods).
+- (*) **common_terms_cutoff_frequency** : [REMOVED] default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). This parameter was removed by elastic search and is now ignored [supported search methods](#supported-search-methods).
 - (*) **enable_raw_dsl_endpoint** : flag to enable the [raw Elasticsearch DSL endpoint](#api). This endpoint is disabled by default for security reasons.
 - (*) **attachments_path_base** : path inside the Docker container where files for the attachment pipeline are mounted. Defaults to `/data`.
 
