@@ -148,7 +148,7 @@ configure do
   MuSearch::SPARQL::ConnectionPool.setup(size: connection_pool_size)
 
   until elasticsearch.up?
-    Mu::log.info("SETUP") { "...waiting for elasticsearch..." }
+    Mu::log.info("SETUP") { "...waiting for elasticsearch...." }
     sleep 1
   end
 
@@ -387,7 +387,7 @@ end
 # TODO Make this more descriptive - status of all indexes?
 get "/health" do
   settings.index_manager.indexes.inspect
-  { status: "up" }.to_json
+  { status: "up", version: 1 }.to_json
 end
 
 get "/indexes" do
