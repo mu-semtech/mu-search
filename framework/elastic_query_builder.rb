@@ -265,19 +265,32 @@ class ElasticQueryBuilder
           query: value,
           fields: all_fields ? nil : fields,
           default_operator: "and",
-          all_fields: all_fields
         }.compact
       }
     when /common(,[0-9.]+){,2}/
       ensure_single_field_for "common", fields do |field|
         flag, cutoff, min_match = flag.split(",")
-        cutoff = cutoff or @configuration[:common_terms_cutoff_frequency]
         term = {
-          common: {
-            field => { query: value, cutoff_frequency: cutoff }
+          # common was deprecated and removed in favor of match
+          # cutoff_frequency for match was also removed and is no longer used
+          match: {
+            field => { query: value }
           }
         }
-        term["minimum_should_match"] = min_match if min_match
+        term[:match][field]["minimum_should_match"] = min_match if min_match
+        term
+      end
+    when /match(,[0-9.]+){,1}/
+      ensure_single_field_for "match", fields do |field|
+        flag, min_match = flag.split(",")
+        term = {
+          # common was deprecated and removed in favor of match
+          # cutoff_frequency for match was also removed and is no longer used
+          match: {
+            field => { query: value }
+          }
+        }
+        term[:match][field]["minimum_should_match"] = min_match if min_match
         term
       end
     else

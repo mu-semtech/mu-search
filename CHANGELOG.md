@@ -1,5 +1,8 @@
 # Changelog
 ## Unreleased
+## v0.1.3
+**Features**
+Added support for ES 9.2.0
 
 ## v0.11.0
 **Features**

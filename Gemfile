@@ -5,6 +5,6 @@ source 'https://rubygems.org' do
   gem 'faraday', '~> 2.13'
   gem 'faraday-retry', '~> 2.3'
   # matching our current backend setup
-  gem 'elasticsearch', '~> 7.17'
+  gem 'elasticsearch', '~> 9.2'
   gem 'faraday-typhoeus', '~> 1.1'
 end

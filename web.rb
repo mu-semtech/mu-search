@@ -101,7 +101,7 @@ configure do
   connection_pool_size = configuration[:connection_pool_size]
   MuSearch::Tika::ConnectionPool.setup(size: connection_pool_size)
 
-  elasticsearch = MuSearch::Elastic.new(size: connection_pool_size)
+  elasticsearch = MuSearch::ElasticWrapper.new(size: connection_pool_size)
   set :elasticsearch, elasticsearch
 
   MuSearch::SPARQL::ConnectionPool.setup(size: connection_pool_size)

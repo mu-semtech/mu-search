@@ -10,6 +10,7 @@
     "attachments_path_base" : "/local/files/directory",
     "persist_indexes" : false,
     "default_settings" : {
+        "number_of_replicas": 0,
         "analysis": {
           "analyzer": {
             "dutchanalyzer": {
