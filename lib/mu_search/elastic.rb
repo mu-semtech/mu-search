@@ -3,17 +3,26 @@ require 'faraday/typhoeus'
 require 'connection_pool'
 
 # monkeypatch "authentic product check"" in client
-module Elasticsearch
-  class Client
-    alias original_verify_with_version_or_header verify_with_version_or_header
+module ElasticsearchMonkeyPatch
+  private
 
-    def verify_with_version_or_header(...)
-      original_verify_with_version_or_header(...)
-    rescue Elasticsearch::UnsupportedProductError
-      # silenty ignore this error
+  def verify_elasticsearch(*args, &block)
+    while not @verified do
+      sleep 1
+      begin
+        response = @transport.perform_request(*args, &block)
+        response.headers['x-elastic-product'] = 'Elasticsearch'
+        @verified = true
+      rescue StandardError => e
+        Mu::log.info("SETUP") { "no reaction from elastic, retrying..." }
+        next
+      end
     end
+    response
   end
 end
+
+Elasticsearch::Client.prepend(ElasticsearchMonkeyPatch)
 
 # A wrapper around elasticsearch client for backwards compatiblity
 # see https://rubydoc.info/gems/elasticsearch-api/Elasticsearch
@@ -21,7 +30,7 @@ end
 # for docs on the client api
 ##
 module MuSearch
-  class Elastic
+  class ElasticWrapper
     # Sets up the ElasticSearch connection pool
     def initialize(size:)
       MuSearch::ElasticConnectionPool.setup(size: size)
@@ -32,9 +41,11 @@ module MuSearch
     #
     # Executes a health check and accepts either "green" or "yellow".
     def up?
+      Mu::log.info("SETUP") { "Checking if Elasticsearch is up..." }
       MuSearch::ElasticConnectionPool.with_client do |es_client|
         begin
           health = es_client.cluster.health
+          Mu::log.info("SETUP") { "Elasticsearch cluster health: #{health["status"]}" }
           health["status"] == "yellow" or health["status"] == "green"
         rescue
           false
@@ -68,7 +79,7 @@ module MuSearch
       MuSearch::ElasticConnectionPool.with_client do |es_client|
         begin
           es_client.indices.create(index: index, body: { settings: settings, mappings: mappings})
-        rescue Elasticsearch::Transport::Transport::Errors::BadRequest => e
+        rescue Elastic::Transport::Transport::Errors::BadRequest => e
           error_message = e.message
           if error_message.include?("resource_already_exists_exception")
             @logger.warn("ELASTICSEARCH") {"Failed to create index #{index}, because it already exists" }
@@ -102,7 +113,7 @@ module MuSearch
           es_client.indices.delete(index: index)
           @logger.debug("ELASTICSEARCH") { "Successfully deleted index #{index}" }
           true
-        rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
+        rescue Elastic::Transport::Transport::Errors::NotFound => e
           @logger.debug("ELASTICSEARCH") { "Index #{index} doesn't exist and cannot be deleted." }
           false
         rescue StandardError => e
@@ -129,7 +140,7 @@ module MuSearch
           es_client.indices.refresh(index: index)
           @logger.debug("ELASTICSEARCH") { "Successfully refreshed index #{index}" }
           true
-        rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
+        rescue Elastic::Transport::Transport::Errors::NotFound => e
           @logger.warn("ELASTICSEARCH") { "Index #{index} does not exist, cannot refresh." }
           false
         rescue StandardError => e
@@ -149,7 +160,7 @@ module MuSearch
           es_client.delete_by_query(index: index, body: { query: { match_all: {} } })
           @logger.debug("ELASTICSEARCH") { "Successfully cleared all documents from index #{index}" }
           true
-        rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
+        rescue Elastic::Transport::Transport::Errors::NotFound => e
           @logger.warn("ELASTICSEARCH") { "Index #{index} does not exist, cannot clear documents." }
           false
         rescue StandardError => e
@@ -167,7 +178,7 @@ module MuSearch
       MuSearch::ElasticConnectionPool.with_client do |es_client|
         begin
           es_client.get(index: index, id: id)
-        rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
+        rescue Elastic::Transport::Transport::Errors::NotFound => e
           @logger.debug("ELASTICSEARCH") { "Document #{id} not found in index #{index}" }
           nil
         rescue StandardError => e
@@ -208,7 +219,7 @@ module MuSearch
           body = es_client.update(index: index, id: id, body: {doc: document})
           @logger.debug("ELASTICSEARCH") { "Updated document #{id} in index #{index}" }
           body
-        rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
+        rescue Elastic::Transport::Transport::Errors::NotFound => e
           @logger.info("ELASTICSEARCH") { "Cannot update document #{id} in index #{index} because it doesn't exist" }
           nil
         rescue StandardError => e
@@ -246,7 +257,7 @@ module MuSearch
           es_client.delete(index: index, id: id)
           @logger.debug("ELASTICSEARCH") { "Successfully deleted document #{id} in index #{index}" }
           true
-        rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
+        rescue Elastic::Transport::Transport::Errors::NotFound => e
           @logger.debug("ELASTICSEARCH") { "Document #{id} doesn't exist in index #{index} and cannot be deleted." }
           false
         rescue StandardError => e
@@ -264,7 +275,7 @@ module MuSearch
         begin
           @logger.debug("SEARCH") { "Searching Elasticsearch index(es) #{indexes} with body #{req_body}" }
           es_client.search(index: indexes, body: query)
-        rescue Elasticsearch::Transport::Transport::Errors::BadRequest => e
+        rescue Elastic::Transport::Transport::Errors::BadRequest => e
           raise ArgumentError, "Invalid search query #{query}"
         rescue StandardError => e
           @logger.error("SEARCH") { "Searching documents in index(es) #{indexes} failed.\n Error: #{e.full_message}" }
@@ -282,7 +293,7 @@ module MuSearch
           @logger.debug("SEARCH") { "Count search results in index(es) #{indexes} for body #{query.inspect}" }
           response = es_client.count(index: indexes, body: query)
           response["count"]
-        rescue Elasticsearch::Transport::Transport::Errors::BadRequest => e
+        rescue Elastic::Transport::Transport::Errors::BadRequest => e
           @logger.error("SEARCH") { "Counting search results in index(es) #{indexes} failed.\n Error: #{e.full_message}" }
           raise ArgumentError, "Invalid count query #{query}"
         rescue StandardError => e
@@ -313,7 +324,7 @@ module MuSearch
 
     def self.with_client
       instance.with do |client|
-        Mu::log.debug("ELASTICSEARCH") { "Claim Elasticsearch connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
+        Mu::log.info("ELASTICSEARCH") { "Claim Elasticsearch connection from pool. #{@instance.available}/#{@instance.size} connections are still available." }
         yield client
       end
     end

@@ -21,13 +21,15 @@ services:
     volumes:
       - ./config/search:/config
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.2.0
+    image: semtech/mu-search-elastic-backend:1.3.0
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
     environment:
       - discovery.type=single-node
 
 ```
+
+Note: because elasticsearch doesn't run as root in its container, it will mess up file permissions on the host system's mounted volumes. The current workaround is to add the directory to your app's git repo with a .gitkeep file and to set the permissions of the directory to 777, then committing this file to your repo.
 
 The indices will be persisted in `./data/elasticsearch`. The `search` service needs to be linked to an instance of the [mu-authorization](https://github.com/mu-semtech/mu-authorization) service.
 
@@ -761,8 +763,8 @@ Configure indexes to be pre-built when the application starts. For each user sea
 ```javascript
 {
   "eager_indexing_groups": [
-    [ 
-      { "variables": ["company-x"], "name": "organization-read" }, 
+    [
+      { "variables": ["company-x"], "name": "organization-read" },
       { "variables": ["company-x"], "name": "organization-write" },
       { "variables": [], "name": "public" }
     ],
@@ -770,7 +772,7 @@ Configure indexes to be pre-built when the application starts. For each user sea
       { "variables": ["company-y"], "name": "organization-read" },
       { "variables": [], "name": "public" }
     ],
-    [ 
+    [
       { "variables": [], "name": "clean" }
     ]
   ],
@@ -794,8 +796,8 @@ Assume your application contains a company-specific user group in the authorizat
 A typical group to be specified as a single `eager_indexing_group` is `{ "variables": [], "name": "clean" }`. The index will not contain any data, but will be used in the combination to fully match the user's allowed groups.
 
 #### [Experimental] Ignoring allowed groups
-In some cases you may search to ignore certain allowed groups when looking for matching indexes. Typically because they will not relate to data that has to be indexed and you want to avoid having many empty indexes. In this case you will have to provide an entry in the `ignored_allowed_groups` list for each group, currently this means including each possible variable value. 
-For example the clean group can be added to `ignored_allowed_groups` by adding `{ "variables": [], "name": "clean" }` to the list. 
+In some cases you may search to ignore certain allowed groups when looking for matching indexes. Typically because they will not relate to data that has to be indexed and you want to avoid having many empty indexes. In this case you will have to provide an entry in the `ignored_allowed_groups` list for each group, currently this means including each possible variable value.
+For example the clean group can be added to `ignored_allowed_groups` by adding `{ "variables": [], "name": "clean" }` to the list.
 
 #### [Experimental] Dynamic allowed group variables
 In some cases you may encounter variables which are not known up front.  The `"variables"` array accepts a `"*"` to indicate a wildcard for an attribute.  This is currently supported in `ignored_allowed_groups`.  In `eager_indexing_groups` this is supported, but only if the `eager_indexing_group` array contains a single group.  Within `eager_indexing_groups` this allows us to create a dynamic index for an access right whilst still indicating this index does not impact other indexes.  For example, you may want to index the user's message history (`[{ "name": "user", "variables": ["*"] }]` which does not impact the index of the code-lists in public `[{ "name": "public", "variables": [] }].` An example for ignored groups may be to ignore all of the anonymous sessions' information which could be done as: `ignored_allowed_groups": [ { "name": "anonymous-session", "variables": ["*"] } ]`.
@@ -917,7 +919,8 @@ The following sections list the flags that are currently implemented:
 - `:phrase_prefix:` : [Match phrase prefix query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-query-phrase-prefix.html)
 - `:query:` : [Query string query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html)
 - `:sqs:` : [Simple query string query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html)
-- `:common:` [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options).
+- `:common:` [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options). The common terms query was deprecated and removed from elasticsearch. It is replaced by its recommended replacement, the [match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query)
+- `:match` [Match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options).
 
 ###### Custom queries
 - `:fuzzy_phrase:` : A fuzzy phrase query based on [span_near](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-near-query.html) and [span_multi](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-multi-term-query.html). See also [this](https://stackoverflow.com/questions/38816955/elasticsearch-fuzzy-phrases) Stack Overflow issue or [the code](./framework/elastic_query_builder.rb).
@@ -1046,7 +1049,7 @@ This section gives an overview of all configurable options in the search configu
 - (*) **number_of_threads** : number of threads to use during indexing. Defaults to 1.
 - (*) **connection_pool_size** : number of connections in the SPARQL/Elasticsearch/Tika connection pools. Defaults to 20. Typically increased up to 200 on systems with heavy load.
 - (*) **update_wait_interval_minutes** : number of minutes to wait before applying an update. Allows to prevent duplicate updates of the same documents. Defaults to 1.
-- (*) **common_terms_cutoff_frequency** : default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). Defaults to 0.0001. See [supported search methods](#supported-search-methods).
+- (*) **common_terms_cutoff_frequency** : [REMOVED] default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). This parameter was removed by elastic search and is now ignoredee [supported search methods](#supported-search-methods).
 - (*) **enable_raw_dsl_endpoint** : flag to enable the [raw Elasticsearch DSL endpoint](#api). This endpoint is disabled by default for security reasons.
 - (*) **attachments_path_base** : path inside the Docker container where files for the attachment pipeline are mounted. Defaults to `/data`.
 
