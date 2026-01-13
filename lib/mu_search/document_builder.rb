@@ -176,7 +176,7 @@ SPARQL
       language_map = Hash.new {|hash, key| hash[key] = [] }
       literals.collect do |literal|
         value = literal.to_s
-        if literal.language?
+        if literal.language? && !literal.language.to_s.empty?
           language = literal.language.to_s
           language_map[language] << value
         else
