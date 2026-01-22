@@ -164,6 +164,49 @@ SPARQL
       end
     end
 
+    def build_vector_dense_property( values )
+      build_simple_property( values ).collect do |value|
+
+        @logger.info("EMBED") { "building embedding for #{value}" }
+        # value is the uri of an embedding vector whose value is contained in a linked list of chunks
+        # it can also be the special uri http://mu.semte.ch/vocabularies/ext/embeddingVector/null that makes it
+        # explicit that no embedding could be created
+        if not value or value == "http://mu.semte.ch/vocabularies/ext/embeddingVector/null"
+          return nil
+        end
+
+        query = <<SPARQL
+      PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+      SELECT ?value ?index
+      WHERE {
+      {
+        <#{value}> ext:hasChunkedValues / rdf:rest* ?node .
+        ?node rdf:first ?value .
+        ?node ext:mainListIndex ?index .
+      }
+    } ORDER BY ?index
+SPARQL
+
+        chunks_result = @sparql_client.query(query)
+
+        @logger.info("EMBED") { "resulting chunks #{chunks_result}" }
+
+        embedding_floats = []
+        chunks_result.each do |result|
+          chunk_string = result['value'].to_s
+          @logger.info("EMBED") { "chunk part #{chunk_string}" }
+
+          chunk_string.split(",").each do |f|
+          @logger.info("EMBED") { "embedding axis value #{f}" }
+            embedding_floats.append(f.to_f)
+          end
+        end
+        return embedding_floats
+      end
+    end
+
     # Get the array of values to index as language strings for a given SPARQL result set
     #
     # Returns an object mapping languages to their values
