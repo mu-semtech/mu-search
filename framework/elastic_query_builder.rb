@@ -177,6 +177,18 @@ class ElasticQueryBuilder
           flag => { field => value }
         }
       end
+    when "embedding"
+      ensure_single_field_for flag, fields do |field|
+        vector = value.split(",").map { |v| v.to_f }
+        {
+          "knn": {
+            "field": field,
+            "query_vector": vector,
+            "k": 3,
+            "num_candidates": 6
+          },
+        }
+      end
     when "terms"
       ensure_single_field_for flag, fields do |field|
         {

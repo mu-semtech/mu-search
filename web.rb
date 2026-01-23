@@ -216,6 +216,82 @@ get "/:path/search" do |path|
   end
 end
 
+# same as get on /:path/search but with the params in the body as json instead,
+# for long search messages that don't fit in a url, e.g. embedding vectors
+post "/:path/large-search" do |path|
+  begin
+    allowed_groups = get_allowed_groups_with_fallback
+    Mu::log.debug("AUTHORIZATION") { "Search request received allowed groups #{allowed_groups}" }
+  rescue StandardError => e
+    Mu::log.error("AUTHORIZATION") { e.full_message }
+    error("Unable to determine authorization groups", 401)
+  end
+
+  elasticsearch = settings.elasticsearch
+  index_manager = settings.index_manager
+  type_def = settings.type_definitions.values.find { |type_def| type_def["on_path"] == path }
+
+  begin
+    raise ArgumentError, "No search configuration found for path #{path}" if type_def.nil?
+
+    indexes = index_manager.fetch_indexes(type_def["type"], allowed_groups)
+
+    search_configuration = {
+      common_terms_cutoff_frequency: settings.common_terms_cutoff_frequency
+    }
+
+    filter = @json_body["filter"]
+    page = @json_body["page"]
+    sort = @json_body["sort"]
+    count = @json_body["count"]
+    highlight = @json_body["highlight"]
+    collapse_uuids = @json_body["collapse_uuids"]
+
+    query_builder = ElasticQueryBuilder.new(
+      logger: Mu::log,
+      type_definition: type_def,
+      filter: filter,
+      page: page,
+      sort: sort,
+      count: count,
+      highlight: highlight,
+      collapse_uuids: collapse_uuids,
+      search_configuration: search_configuration)
+
+    if indexes.length == 0
+      Mu::log.info("SEARCH") { "No indexes found to search in. Returning empty result" }
+      format_search_results(type_def["type"], 0, query_builder.page_number, query_builder.page_size, []).to_json
+    else
+      search_query = query_builder.build_search_query
+
+      while indexes.any? { |index| index.status == :updating }
+        Mu::log.info("SEARCH") { "Waiting for indexes to be up-to-date..." }
+        sleep 0.5
+      end
+      Mu::log.debug("SEARCH") { "All indexes are up to date" }
+
+      index_names = indexes.map { |index| index.name }
+      search_results = elasticsearch.search_documents indexes: index_names, query: search_query
+      count =
+        if query_builder.collapse_uuids
+          search_results.dig("aggregations", "type_count", "value")
+        elsif query_builder.use_exact_count
+          search_results.dig("hits", "total", "value")
+        else
+          count_query = query_builder.build_count_query
+          elasticsearch.count_documents indexes: index_names, query: count_query
+        end
+      Mu::log.debug("SEARCH") { "Found #{count} results" }
+      format_search_results(type_def["type"], count, query_builder.page_number, query_builder.page_size, search_results).to_json
+    end
+  rescue ArgumentError => e
+    error(e.message, 400)
+  rescue StandardError => e
+    Mu::log.error("SEARCH") { e.full_message }
+    error(e.inspect, 500)
+  end
+end
+
 # Execute a search query by passing a raw Elasticsearch Query DSL as request body
 #
 # The search is only performed on indexes the user has access to
