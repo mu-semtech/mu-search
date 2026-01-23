@@ -167,7 +167,7 @@ SPARQL
     def build_vector_dense_property( values )
       build_simple_property( values ).collect do |value|
 
-        @logger.info("EMBED") { "building embedding for #{value}" }
+        @logger.debug("EMBED") { "building embedding for #{value}" }
         # value is the uri of an embedding vector whose value is contained in a linked list of chunks
         # it can also be the special uri http://mu.semte.ch/vocabularies/ext/embeddingVector/null that makes it
         # explicit that no embedding could be created
@@ -191,15 +191,13 @@ SPARQL
 
         chunks_result = @sparql_client.query(query)
 
-        @logger.info("EMBED") { "resulting chunks #{chunks_result}" }
+        @logger.debug("EMBED") { "resulting chunks #{chunks_result}" }
 
         embedding_floats = []
         chunks_result.each do |result|
           chunk_string = result['value'].to_s
-          @logger.info("EMBED") { "chunk part #{chunk_string}" }
 
           chunk_string.split(",").each do |f|
-          @logger.info("EMBED") { "embedding axis value #{f}" }
             embedding_floats.append(f.to_f)
           end
         end
