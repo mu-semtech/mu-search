@@ -621,6 +621,69 @@ For searching, make sure to either specify the appropriate field (`filter[title.
 
 It's often advised to configure language specific analyzers for each language, this can be done in the mappings sections of the configuration.
 
+##### [Experimental] Embedding Vectors
+
+Mu search has experimental support for indexing embeddings as [dense vectors](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/dense-vector).
+
+For example:
+
+```json
+{
+  "types": [
+    {
+      "type": "document",
+      "on_path": "documents",
+      "rdf_type": "http://xmlns.com/foaf/0.1/Document",
+      "properties": {
+        "embedding": {
+          "via": "http://mu.semte.ch/vocabularies/ext/embeddingVector",
+          "type": "dense_vector"
+        }
+      },
+      "mappings": {
+        "properties": {
+          "title": {
+            "embedding": {
+              "type": "dense_vector"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+Embedding vectors can be quite large and triplestores can run into problems when storing such large strings. This is why mu-search expects the embedding vectors to be stored in chunks as a linked list. This list should be stored using the predicate `http://mu.semte.ch/vocabularies/ext/hasChunkedValues`. For easy sorting of these chunks, every part of this list should also refer to its index using the predicate `http://mu.semte.ch/vocabularies/ext/mainListIndex`. Chunk size is not enforced by mu-search, we found that 50 values per chunk is a decent size.
+
+Remember that all embedding vectors should be constructed in the same way and should be the same size. This also goes for the target vector when searching using the `:embedding` search. Embeddings can be generated using the [embedding-service](https://github.com/semantic-ai/embedding-service).
+
+An instance can be explicitly marked as having no embedding vector by providing the value `http://mu.semte.ch/vocabularies/ext/embeddingVector/null`, those values will be ignored. This helps services like the embedding-service to mark instances that can't receive embeddings as processed.
+
+Example data holding embeddings for an instance could be:
+
+```turtle
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ext: <http://mu.semte.ch/vocabularies/ext/>
+
+<https://ris.freiburg.de/oparl/organization/SPD> ext:embeddingVector <http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0> .
+
+<http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0> a ext:EmbeddingVector ;
+  ext:hasChunkedValues <http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/0> .
+
+<http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/0> a rdf:List ;
+  rdf:first "-0.14174555,0.051562164,-0.054384213,-0.014637175,-0.0007808501,-0.016851587,0.019301299,-0.03405146" ;
+  rdf:rest <http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/1> ;
+  ext:mainListIndex 0 .
+
+<http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/1> a rdf:List ;
+  rdf:first "0.002858431,0.041939776,0.042765375,-0.007611912,-0.036059007" ;
+  rdf:rest rdf:nil ;
+  ext:mainListIndex 1 .
+```
+
+note: not all chunks of this vector will have the same length. Often only the final chunk will be shorter, but in theory chunks can be of varying length.
+
 ##### [Experimental] Composite types
 
 A search index can contain documents of different types. E.g. documents (`foaf:Document`) as well as creative works (`schema:CreativeWork`). Currently, each simple type the composite index is constituted of must be defined separately in the index configuration as well.
@@ -683,7 +746,7 @@ The example below contains 2 simple indexes for documents and creative works, an
          }
     ]
 }
-```
+````
 
 #### Using Prefixes
 
@@ -1010,6 +1073,10 @@ The following sections list the flags that are currently implemented:
 - `:common:` [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options). The common terms query was deprecated and removed from elasticsearch. It is replaced by its recommended replacement, the [match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query)
 - `:match` [Match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options).
 
+###### Vector-based queries
+
+- `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense_vector` field. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. Optionally, you can prefix the vector by integer values for `k` (the number of closest matches, default 3) and `num_candidates` (the number of rough close matches to consider, default 20). An example search would be `filter[:embedding:description-vector]=2:10:0.1,-0.3,0.8`
+
 ###### Custom queries
 
 - `:fuzzy_phrase:` : A fuzzy phrase query based on [span_near](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-near-query.html) and [span_multi](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-multi-term-query.html). See also [this](https://stackoverflow.com/questions/38816955/elasticsearch-fuzzy-phrases) Stack Overflow issue or [the code](./framework/elastic_query_builder.rb).
@@ -1102,6 +1169,12 @@ For security reasons, the endpoint is disabled by default. It can be enabled by 
   ]
 }
 ```
+
+#### [Experimental] POST `/:type/large-search`
+
+Some queries require so many parameters or parameters of such a large size, that they don't fit in the max length of a url. This can be the case for embedding-based searches, for instance, as you need to provide the full target vector to search for. To get around this limitation, the `POST /:type/large-search` endpoint can be used.
+
+This endpoint behaves in the same way as the `GET /:type/search` endpoint, but all the query params are instead sent in the JSON body of the request.
 
 #### Admin endpoints
 

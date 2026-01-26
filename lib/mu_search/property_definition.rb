@@ -25,6 +25,8 @@ module MuSearch
         path = config["via"].is_a?(Array) ? config["via"] : [config["via"]]
         if config.key?("attachment_pipeline")
           type = "attachment"
+        elsif config.key?("type") && config["type"] == "dense_vector"
+          type = "dense_vector"
         elsif config.key?("properties")
           type = "nested"
           sub_properties = config["properties"].map do |subname, subconfig|
