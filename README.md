@@ -637,7 +637,7 @@ For example:
       "properties": {
         "embedding": {
           "via": "http://mu.semte.ch/vocabularies/ext/embeddingVector",
-          "type": "dense_vector"
+          "type": "dense-vector"
         }
       },
       "mappings": {
@@ -746,7 +746,7 @@ The example below contains 2 simple indexes for documents and creative works, an
          }
     ]
 }
-````
+```
 
 #### Using Prefixes
 
@@ -1075,7 +1075,7 @@ The following sections list the flags that are currently implemented:
 
 ###### Vector-based queries
 
-- `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense_vector` field. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. Optionally, you can prefix the vector by integer values for `k` (the number of closest matches, default 3) and `num_candidates` (the number of rough close matches to consider, default 20). An example search would be `filter[:embedding:description-vector]=2:10:0.1,-0.3,0.8`
+- `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense-vector` field. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. Optionally, you can prefix the vector by integer values for `k` (the number of closest matches, default 3) and `num_candidates` (the number of rough close matches to consider, default 20). An example search would be `filter[:embedding:description-vector]=2:10:0.1,-0.3,0.8`
 
 ###### Custom queries
 
