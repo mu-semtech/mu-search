@@ -262,7 +262,7 @@ module MuSearch
     def search_documents(indexes:, query: nil)
       MuSearch::ElasticConnectionPool.with_client do |es_client|
         begin
-          @logger.debug("SEARCH") { "Searching Elasticsearch index(es) #{indexes} with body #{req_body}" }
+          @logger.debug("SEARCH") { "Searching Elasticsearch index(es) #{indexes} with query #{query}" }
           es_client.search(index: indexes, body: query)
         rescue Elasticsearch::Transport::Transport::Errors::BadRequest => e
           raise ArgumentError, "Invalid search query #{query}"
