@@ -179,13 +179,25 @@ class ElasticQueryBuilder
       end
     when "embedding"
       ensure_single_field_for flag, fields do |field|
-        vector = value.split(",").map { |v| v.to_f }
+        params = value.split(":")
+        k = 3
+        num_candidates = 20
+        if params.length === 3
+          k = params[0].to_i
+          num_candidates = params[1].to_i
+          target_vector = params[2]
+        elsif params.length === 1
+          target_vector = params[0]
+        else
+          raise ArgumentError, "Expected either 1 or 3 colon-separated values for embedding value but received #{value}"
+        end
+        vector = target_vector.split(",").map { |v| v.to_f }
         {
           "knn": {
             "field": field,
             "query_vector": vector,
-            "k": 3,
-            "num_candidates": 6
+            "k": k,
+            "num_candidates": num_candidates
           },
         }
       end
