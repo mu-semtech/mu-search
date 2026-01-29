@@ -172,36 +172,36 @@ SPARQL
         # it can also be the special uri http://mu.semte.ch/vocabularies/ext/embeddingVector/null that makes it
         # explicit that no embedding could be created
         if not value or value == "http://mu.semte.ch/vocabularies/ext/embeddingVector/null"
-          return nil
-        end
+          nil
+        else
+          query = <<SPARQL
+          PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+          PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 
-        query = <<SPARQL
-      PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-
-      SELECT ?value ?index
-      WHERE {
-      {
-        <#{value}> ext:hasChunkedValues / rdf:rest* ?node .
-        ?node rdf:first ?value .
-        ?node ext:mainListIndex ?index .
-      }
-    } ORDER BY ?index
+          SELECT ?value ?index
+          WHERE {
+          {
+            <#{value}> ext:hasChunkedValues / rdf:rest* ?node .
+            ?node rdf:first ?value .
+            ?node ext:mainListIndex ?index .
+          }
+        } ORDER BY ?index
 SPARQL
 
-        chunks_result = @sparql_client.query(query)
+          chunks_result = @sparql_client.query(query)
 
-        @logger.debug("EMBED") { "resulting chunks #{chunks_result}" }
+          @logger.debug("EMBED") { "resulting chunks #{chunks_result}" }
 
-        embedding_floats = []
-        chunks_result.each do |result|
-          chunk_string = result['value'].to_s
+          embedding_floats = []
+          chunks_result.each do |result|
+            chunk_string = result['value'].to_s
 
-          chunk_string.split(",").each do |f|
-            embedding_floats.append(f.to_f)
+            chunk_string.split(",").each do |f|
+              embedding_floats.append(f.to_f)
+            end
           end
+          return embedding_floats
         end
-        return embedding_floats
       end
     end
 
