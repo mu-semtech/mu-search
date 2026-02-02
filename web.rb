@@ -15,7 +15,7 @@ require_relative 'lib/mu_search/index_manager.rb'
 require_relative 'lib/mu_search/elastic.rb'
 require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
-require_relative 'framework/jsonapi.rb'
+require_relative 'lib/mu_search/json_api.rb'
 
 ##
 # WEBrick setup
@@ -34,6 +34,8 @@ Psych::Parser.code_point_limit= max_yaml_size
 Mu::log.formatter = proc do |severity, datetime, progname, msg|
   "#{severity} [\##{$$}] #{progname} -- #{msg}\n"
 end
+
+helpers MuSearch::JsonApi
 
 before do
   request.path_info.chomp!('/')
