@@ -36,6 +36,7 @@ Mu::log.formatter = proc do |severity, datetime, progname, msg|
 end
 
 helpers MuSearch::JsonApi
+helpers MuSearch::AuthorizationUtils
 
 before do
   request.path_info.chomp!('/')

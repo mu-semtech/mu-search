@@ -191,7 +191,7 @@ module MuSearch
     # TODO take used_groups into account when they are supported by mu-authorization
     def find_single_index_for_groups(type_name, allowed_groups, used_groups = [])
       @logger.debug("INDEX MGMT") { "Trying to find single matching index in cache for type '#{type_name}', allowed_groups #{allowed_groups} and used_groups #{used_groups}" }
-      group_key = serialize_authorization_groups allowed_groups
+      group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups allowed_groups
       index = @indexes.dig(type_name, group_key)
       index
     end
@@ -287,8 +287,8 @@ module MuSearch
     # Returns the index with status :valid or :invalid depending
     # whether the index already exists in Elasticsearch
     def ensure_index(type_name, allowed_groups, used_groups = [], is_eager_index = false)
-      sorted_allowed_groups = sort_authorization_groups allowed_groups
-      sorted_used_groups = sort_authorization_groups used_groups
+      sorted_allowed_groups = MuSearch::AuthorizationUtils.sort_authorization_groups allowed_groups
+      sorted_used_groups = MuSearch::AuthorizationUtils.sort_authorization_groups used_groups
       index_name = generate_index_name type_name, sorted_allowed_groups, sorted_used_groups
 
       # Ensure index exists in triplestore
@@ -312,7 +312,7 @@ module MuSearch
           used_groups: sorted_used_groups,
           is_eager_index: is_eager_index)
         @indexes[type_name] = {} unless @indexes.has_key? type_name
-        group_key = serialize_authorization_groups sorted_allowed_groups
+        group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups sorted_allowed_groups
         @indexes[type_name][group_key] = index
       end
 
@@ -385,7 +385,7 @@ module MuSearch
     # and the in-memory indexes cache of the IndexManager.
     def remove_index(index)
       type = index.type_name
-      group_key = serialize_authorization_groups(index.allowed_groups)
+      group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups(index.allowed_groups)
       if @indexes[type]
         @indexes[type].delete(group_key)
         @indexes.delete(type) if @indexes[type].empty?
@@ -536,7 +536,7 @@ SPARQL
 SPARQL
         used_groups = used_groups_result.map { |g| JSON.parse g["group"].to_s }
 
-        group_key = serialize_authorization_groups allowed_groups
+        group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups allowed_groups
 
         indexes[group_key] = MuSearch::SearchIndex.new(
           uri: uri,
