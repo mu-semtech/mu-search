@@ -98,7 +98,7 @@ module MuSearch
         triples.each do |triple|
           subjects += find_root_subjects_for_triple(triple, config, triple["is_addition"])
         end
-        if subjects.size
+        if subjects.size > 0
           type_name = config.name
           @logger.debug("DELTA") { "Found #{subjects.length} subjects for resource config '#{type_name}' that needs to be updated." }
           subjects.each { |subject| @update_handler.add_update(subject, type_name) }
