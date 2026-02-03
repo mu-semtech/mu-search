@@ -682,6 +682,8 @@ Example data holding embeddings for an instance could be:
   ext:mainListIndex 1 .
 ```
 
+Elastic does not allow multiple values for a dense_vector property. Because of this, if multiple values are detected for a dense_vector property, they are averaged and normalized when they are added into the elastic instance.
+
 note: not all chunks of this vector will have the same length. Often only the final chunk will be shorter, but in theory chunks can be of varying length.
 
 ##### [Experimental] Composite types
