@@ -218,11 +218,18 @@ SPARQL
 
       return non_nil_vectors[0] if non_nil_vectors.length == 1
 
-      non_nil_vectors.first.each_index.map do |i|
+      average = non_nil_vectors.first.each_index.map do |i|
         values_at_index = non_nil_vectors.map { |v| v[i] }
         sum_at_index = values_at_index.sum
         sum_at_index.to_f / non_nil_vectors.size.to_f
       end
+      normalize_vector(average)
+    end
+
+    # need to normlize the vector too for proper use of cosine similarity (used in elastic)
+    def normalize_vector(vector)
+      magnitude = Math.sqrt(vector.sum { |x| x ** 2 })
+      vector.map { |x| x.to_f / magnitude }
     end
 
     # Get the array of values to index as language strings for a given SPARQL result set
