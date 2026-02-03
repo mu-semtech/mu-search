@@ -165,7 +165,10 @@ SPARQL
     end
 
     def build_vector_dense_property( values )
-      build_simple_property( values ).collect do |value|
+      if values && values.length > 1
+        @logger.debug("EMBED") { "multiple embeddings found for #{values[0]}, elastic doesn't allow this. averaging the values for storage"}
+      end
+      vector_values = build_simple_property( values ).collect do |value|
 
         @logger.debug("EMBED") { "building embedding for #{value}" }
         # value is the uri of an embedding vector whose value is contained in a linked list of chunks
@@ -200,8 +203,25 @@ SPARQL
               embedding_floats.append(f.to_f)
             end
           end
-          return embedding_floats
+          embedding_floats
         end
+      end
+      average_vectors(vector_values)
+    end
+
+    # elastic only allows a single value per dense_vector property.
+    # We're too late to do anything about multiple values here, best we can do is average the values we have
+    def average_vectors(vectors)
+      non_nil_vectors = vectors.compact
+
+      return [] if non_nil_vectors.empty?
+
+      return non_nil_vectors[0] if non_nil_vectors.length == 1
+
+      non_nil_vectors.first.each_index.map do |i|
+        values_at_index = non_nil_vectors.map { |v| v[i] }
+        sum_at_index = values_at_index.sum
+        sum_at_index.to_f / non_nil_vectors.size.to_f
       end
     end
 
