@@ -218,20 +218,13 @@ module MuSearch
       end
     end
 
-    # Updates the document with the given id in the given index.
-    # Inserts the document if it doesn't exist yet
+    # Indexes the full document, replacing any existing document with the same id.
+    # Creates the document if it doesn't exist yet.
     # - index: index to store document in
     # - id: elastic identifier to store the document under
     # - document: document contents (as a ruby json object)
     def upsert_document(index, id, document)
-      @logger.debug("ELASTICSEARCH") { "Trying to update document with id #{id}" }
-      updated_document = update_document index, id, document
-      if updated_document.nil?
-        @logger.debug("ELASTICSEARCH") { "Document #{id} does not exist yet, trying to insert new document" }
-        insert_document index, id, document
-      else
-        updated_document
-      end
+      insert_document index, id, document
     end
 
     # Deletes a document from an Elasticsearch index
