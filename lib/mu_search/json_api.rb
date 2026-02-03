@@ -25,6 +25,22 @@ module MuSearch
       )
     end
 
+    # Formats a list of search indexes as a JSON:API response string.
+    def format_index_response(indexes)
+      data = indexes.map do |index|
+        {
+          type: "indexes",
+          id: index.name,
+          attributes: {
+            uri: index.uri,
+            status: index.status,
+            'allowed-groups' => index.allowed_groups
+          }
+        }
+      end
+      { data: data }.to_json
+    end
+
     module_function
 
     # Builds a JSONAPI-formatted response hash from Elasticsearch results.

@@ -148,13 +148,7 @@ end
 #
 # See README for more information about the filter syntax.
 get "/:path/search" do |path|
-  begin
-    allowed_groups = get_allowed_groups_with_fallback
-    Mu::log.debug("AUTHORIZATION") { "Search request received allowed groups #{allowed_groups}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!(with_fallback: true)
 
   elasticsearch = settings.elasticsearch
   index_manager = settings.index_manager
@@ -209,7 +203,7 @@ get "/:path/search" do |path|
     error(e.message, 400)
   rescue StandardError => e
     Mu::log.error("SEARCH") { e.full_message }
-    error(e.inspect, 500)
+    error("Internal server error", 500)
   end
 end
 
@@ -223,13 +217,7 @@ end
 # This endpoint must be used with caution and explicitly enabled in the search config!
 if settings.enable_raw_dsl_endpoint
   post "/:path/search" do |path|
-    begin
-      allowed_groups = get_allowed_groups_with_fallback
-      Mu::log.debug("AUTHORIZATION") { "Search request received allowed groups #{allowed_groups}" }
-    rescue StandardError => e
-      Mu::log.error("AUTHORIZATION") { e.full_message }
-      error("Unable to determine authorization groups", 401)
-    end
+    allowed_groups = authorize!(with_fallback: true)
 
     elasticsearch = settings.elasticsearch
     index_manager = settings.index_manager
@@ -261,7 +249,7 @@ if settings.enable_raw_dsl_endpoint
       error(e.message, 400)
     rescue StandardError => e
       Mu::log.error("SEARCH") { e.full_message }
-      error(e.inspect, 500)
+      error("Internal server error", 500)
     end
   end
 end
@@ -278,31 +266,12 @@ end
 #   Hence, on restart of mu-search, the index will be considered valid again.
 # - an invalidated index will be updated before executing a search query on it.
 post "/:path/index" do |path|
-  begin
-    allowed_groups = get_allowed_groups
-    Mu::log.debug("AUTHORIZATION") { "Index update request received allowed groups #{allowed_groups || 'none'}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!
 
   index_type = path == "_all" ? nil : path
-  index_manager = settings.index_manager
-  indexes = index_manager.fetch_indexes index_type, allowed_groups, force_update: true
+  indexes = settings.index_manager.fetch_indexes index_type, allowed_groups, force_update: true
 
-  data = indexes.map do |index|
-    {
-      type: "indexes",
-      id: index.name,
-      attributes: {
-        uri: index.uri,
-        status: index.status,
-        'allowed-groups' => index.allowed_groups
-      }
-    }
-  end
-
-  { data: data }.to_json
+  format_index_response(indexes)
 end
 
 # Invalidates the indexes for the given :path.
@@ -318,31 +287,12 @@ end
 #   Hence, on restart of mu-search, the index will be considered valid again.
 # - an invalidated index will be updated before executing a search query on it.
 post "/:path/invalidate" do |path|
-  begin
-    allowed_groups = get_allowed_groups
-    Mu::log.debug("AUTHORIZATION") { "Index invalidation request received allowed groups #{allowed_groups || 'none'}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!
 
   index_type = path == "_all" ? nil : path
-  index_manager = settings.index_manager
-  indexes = index_manager.invalidate_indexes index_type, allowed_groups
+  indexes = settings.index_manager.invalidate_indexes index_type, allowed_groups
 
-  data = indexes.map do |index|
-    {
-      type: "indexes",
-      id: index.name,
-      attributes: {
-        uri: index.uri,
-        status: index.status,
-        'allowed-groups' => index.allowed_groups
-      }
-    }
-  end
-
-  { data: data }.to_json
+  format_index_response(indexes)
 end
 
 # Removes the indexes for the given :path.
@@ -354,31 +304,12 @@ end
 #
 # Note: a removed index will be recreated before executing a search query on it.
 delete "/:path" do |path|
-  begin
-    allowed_groups = get_allowed_groups
-    Mu::log.debug("AUTHORIZATION") { "Index delete request received allowed groups #{allowed_groups || 'none'}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!
 
   index_type = path == "_all" ? nil : path
-  index_manager = settings.index_manager
-  indexes = index_manager.remove_indexes index_type, allowed_groups
+  indexes = settings.index_manager.remove_indexes index_type, allowed_groups
 
-  data = indexes.map do |index|
-    {
-      type: "indexes",
-      id: index.name,
-      attributes: {
-        uri: index.uri,
-        status: index.status,
-        'allowed-groups' => index.allowed_groups
-      }
-    }
-  end
-
-  { data: data }.to_json
+  format_index_response(indexes)
 end
 
 # Health report

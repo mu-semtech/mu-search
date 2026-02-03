@@ -42,6 +42,22 @@ module MuSearch
       end
     end
 
+    # Authorize the current request and return allowed groups.
+    # Halts with a 401 error if authorization groups cannot be determined.
+    #
+    # @param with_fallback [Boolean] if true, falls back to querying
+    #   the triplestore when no authorization header is present
+    # @return [Array, nil] the allowed groups, or nil if no header
+    #   is present and with_fallback is false
+    def authorize!(with_fallback: false)
+      groups = with_fallback ? get_allowed_groups_with_fallback : get_allowed_groups
+      Mu::log.debug("AUTHORIZATION") { "Received allowed groups #{groups || 'none'}" }
+      groups
+    rescue StandardError => e
+      Mu::log.error("AUTHORIZATION") { e.full_message }
+      error("Unable to determine authorization groups", 401)
+    end
+
     module_function
 
     # Returns a string representation for an authorization group.
