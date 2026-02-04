@@ -1,4 +1,5 @@
 require_relative './prefix_utils'
+require_relative './property_definition'
 
 module MuSearch
   # This class represents index definitions as defined in the configuration file of mu-search
@@ -33,7 +34,7 @@ module MuSearch
       end
     end
 
-    def self.create_composite_sub_definitions(composite_definition, definitions)
+    def self.create_composite_sub_definitions(composite_definition, definitions, prefixes = {})
       sub_def_names = composite_definition["composite_types"]
       sub_definitions = definitions.map do |index_definition|
         name = index_definition["type"]
@@ -49,10 +50,19 @@ module MuSearch
           end
         end
 
+        rdf_type = index_definition["rdf_type"]
+        if rdf_type
+          if rdf_type.is_a?(Array)
+            rdf_type = rdf_type.map { |t| PrefixUtils.expand_prefix(t, prefixes) }
+          else
+            rdf_type = PrefixUtils.expand_prefix(rdf_type, prefixes)
+          end
+        end
+
         CompositeSubIndexDefinition.new(
           name: name,
-          rdf_type: index_definition["rdf_type"],
-          properties: properties
+          rdf_type: rdf_type,
+          properties: build_property_definitions(properties, prefixes)
         )
       end
       sub_definitions.reject{ |sub| sub.nil?  }
@@ -64,14 +74,12 @@ module MuSearch
       all_definitions.collect do |definition|
         name = definition["type"]
         composite_types = []
+        prop_defs = []
         if definition["composite_types"]
-          composite_types = create_composite_sub_definitions(definition, all_definitions)
-          composite_types.each do |definition|
-            build_property_definitions(definition.properties, prefixes)
-          end
+          composite_types = create_composite_sub_definitions(definition, all_definitions, prefixes)
         else
           # ensure uuid is included because it may be used for folding
-          build_property_definitions(definition["properties"], prefixes)
+          prop_defs = build_property_definitions(definition["properties"], prefixes)
         end
 
         # Expand prefixes in rdf_type if present
@@ -89,7 +97,7 @@ module MuSearch
           on_path: definition["on_path"],
           rdf_type: rdf_type,
           composite_types: composite_types,
-          properties: definition["properties"],
+          properties: prop_defs,
           mappings: definition["mappings"],
           settings: definition["settings"]
         )
@@ -99,11 +107,12 @@ module MuSearch
 
     def self.build_property_definitions(properties, prefixes)
       ensure_uuid_property(properties)
-      properties.each do |(key, value)|
+      properties.map do |(key, value)|
         property_definition = PropertyDefinition.from_json_config(key, value, prefixes)
         if property_definition.type == "nested"
           build_property_definitions(value["properties"], prefixes)
         end
+        property_definition
       end
     end
 
@@ -196,17 +205,12 @@ module MuSearch
     private
     def build_property_paths
       if is_regular_index?
-        build_property_paths_for_properties(properties)
+        build_property_paths_for_property_definitions(@properties)
       else
         composite_types.each do |sub_definition|
-          build_property_paths_for_properties(sub_definition.properties)
+          build_property_paths_for_property_definitions(sub_definition.properties)
         end
       end
-    end
-
-    def build_property_paths_for_properties(properties)
-      property_definitions = properties.map { |key, cfg| PropertyDefinition.from_json_config(key, cfg) }
-      build_property_paths_for_property_definitions(property_definitions)
     end
 
     def build_property_paths_for_property_definitions(property_definitions, root_path = [])
