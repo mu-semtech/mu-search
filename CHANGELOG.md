@@ -1,7 +1,15 @@
 # Changelog
 ## Unreleased
+
+## v0.11.0
 **Features**
-- added ignored groups: groups that should not be taken into account when searching
+- Connection pooling with configurable connection pool size for requests to
+  - Tika
+  - Elasticsearch
+  - triplestore
+- mu-cli script to manage indexes
+- Make max yaml size configurable via MAX_YAML_SIZE env var
+- Experimental support for ignoring and dynamic allowed groups
 
 ## v0.10.0
 **Fixes**

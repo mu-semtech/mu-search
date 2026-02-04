@@ -10,11 +10,9 @@ module MuSearch
   class IndexManager
     attr_reader :indexes, :ignored_allowed_groups
 
-    def initialize(logger:, elasticsearch:, tika:, sparql_connection_pool:, search_configuration:)
+    def initialize(logger:, elasticsearch:, search_configuration:)
       @logger = logger
       @elasticsearch = elasticsearch
-      @tika = tika
-      @sparql_connection_pool = sparql_connection_pool
       @master_mutex = Mutex.new
       @configuration = search_configuration
       @indexes = {} # indexes per type
@@ -193,7 +191,7 @@ module MuSearch
     # TODO take used_groups into account when they are supported by mu-authorization
     def find_single_index_for_groups(type_name, allowed_groups, used_groups = [])
       @logger.debug("INDEX MGMT") { "Trying to find single matching index in cache for type '#{type_name}', allowed_groups #{allowed_groups} and used_groups #{used_groups}" }
-      group_key = serialize_authorization_groups allowed_groups
+      group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups allowed_groups
       index = @indexes.dig(type_name, group_key)
       index
     end
@@ -289,8 +287,8 @@ module MuSearch
     # Returns the index with status :valid or :invalid depending
     # whether the index already exists in Elasticsearch
     def ensure_index(type_name, allowed_groups, used_groups = [], is_eager_index = false)
-      sorted_allowed_groups = sort_authorization_groups allowed_groups
-      sorted_used_groups = sort_authorization_groups used_groups
+      sorted_allowed_groups = MuSearch::AuthorizationUtils.sort_authorization_groups allowed_groups
+      sorted_used_groups = MuSearch::AuthorizationUtils.sort_authorization_groups used_groups
       index_name = generate_index_name type_name, sorted_allowed_groups, sorted_used_groups
 
       # Ensure index exists in triplestore
@@ -314,7 +312,7 @@ module MuSearch
           used_groups: sorted_used_groups,
           is_eager_index: is_eager_index)
         @indexes[type_name] = {} unless @indexes.has_key? type_name
-        group_key = serialize_authorization_groups sorted_allowed_groups
+        group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups sorted_allowed_groups
         @indexes[type_name][group_key] = index
       end
 
@@ -378,8 +376,6 @@ module MuSearch
       builder = MuSearch::IndexBuilder.new(
         logger: @logger,
         elasticsearch: @elasticsearch,
-        tika: @tika,
-        sparql_connection_pool: @sparql_connection_pool,
         search_index: index,
         search_configuration: search_configuration)
       builder.build
@@ -388,7 +384,12 @@ module MuSearch
     # Removes the index from the triplestore, Elasticsearch
     # and the in-memory indexes cache of the IndexManager.
     def remove_index(index)
-      @indexes.delete(index)
+      type = index.type_name
+      group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups(index.allowed_groups)
+      if @indexes[type]
+        @indexes[type].delete(group_key)
+        @indexes.delete(type) if @indexes[type].empty?
+      end
       remove_index_by_name(index.name)
     end
 
@@ -409,7 +410,7 @@ module MuSearch
     # NOTE this method does not check the current search configuration.
     #      It only removes indexes found in the triplestore and removes those.
     def remove_persisted_indexes
-      result = @sparql_connection_pool.sudo_query <<SPARQL
+      result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
 SELECT ?name WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex>;
@@ -443,7 +444,7 @@ SPARQL
       allowed_group_statement = allowed_groups.empty? ? "" : "search:hasAllowedGroup #{groups_term(allowed_groups)} ; "
       used_group_statement = used_groups.empty? ? "" : "search:hasUsedGroup #{groups_term(used_groups)} ; "
 
-      query_result = @sparql_connection_pool.sudo_update <<SPARQL
+      query_result = MuSearch::SPARQL::ConnectionPool.sudo_update <<SPARQL
   PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
   PREFIX search: <http://mu.semte.ch/vocabularies/authorization/>
   INSERT DATA {
@@ -464,7 +465,7 @@ SPARQL
     #
     #   - index_name: name of the index to remove
     def remove_index_from_triplestore(index_name)
-      @sparql_connection_pool.sudo_update <<SPARQL
+      MuSearch::SPARQL::ConnectionPool.sudo_update <<SPARQL
 DELETE {
   GRAPH <http://mu.semte.ch/authorization> {
     ?s ?p ?o .
@@ -483,7 +484,7 @@ SPARQL
     # Find index by name in the triplestore
     # Returns nil if none is found
     def find_index_in_triplestore_by_name(index_name)
-      result = @sparql_connection_pool.sudo_query <<SPARQL
+      result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
 SELECT ?index WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
@@ -503,7 +504,7 @@ SPARQL
     def get_indexes_from_triplestore_by_type(type_name)
       indexes = {}
 
-      query_result = @sparql_connection_pool.sudo_query <<SPARQL
+      query_result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         ?index a <http://mu.semte.ch/vocabularies/authorization/ElasticsearchIndex> ;
@@ -517,7 +518,7 @@ SPARQL
         uri = result["index"].to_s
         index_name = result["index_name"].to_s
 
-        allowed_groups_result = @sparql_connection_pool.sudo_query <<SPARQL
+        allowed_groups_result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         <#{uri}> <http://mu.semte.ch/vocabularies/authorization/hasAllowedGroup> ?group
@@ -526,7 +527,7 @@ SPARQL
 SPARQL
         allowed_groups = allowed_groups_result.map { |g| JSON.parse g["group"].to_s }
 
-        used_groups_result = @sparql_connection_pool.sudo_query <<SPARQL
+        used_groups_result = MuSearch::SPARQL::ConnectionPool.sudo_query <<SPARQL
   SELECT * WHERE {
     GRAPH <http://mu.semte.ch/authorization> {
         <#{uri}> <http://mu.semte.ch/vocabularies/authorization/hasUsedGroup> ?group
@@ -535,7 +536,7 @@ SPARQL
 SPARQL
         used_groups = used_groups_result.map { |g| JSON.parse g["group"].to_s }
 
-        group_key = serialize_authorization_groups allowed_groups
+        group_key = MuSearch::AuthorizationUtils.serialize_authorization_groups allowed_groups
 
         indexes[group_key] = MuSearch::SearchIndex.new(
           uri: uri,

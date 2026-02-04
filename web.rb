@@ -1,11 +1,3 @@
-require 'net/http'
-require 'digest'
-require 'set'
-require 'request_store'
-require 'listen'
-require 'singleton'
-require 'base64'
-require 'open3'
 require 'webrick'
 
 require_relative 'lib/logger.rb'
@@ -20,25 +12,31 @@ require_relative 'lib/mu_search/document_builder.rb'
 require_relative 'lib/mu_search/index_builder.rb'
 require_relative 'lib/mu_search/search_index.rb'
 require_relative 'lib/mu_search/index_manager.rb'
-require_relative 'framework/elastic.rb'
+require_relative 'lib/mu_search/elastic.rb'
+require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
-require_relative 'framework/tika.rb'
-require_relative 'framework/jsonapi.rb'
+require_relative 'lib/mu_search/json_api.rb'
 
 ##
 # WEBrick setup
 ##
 max_uri_length = ENV["MAX_REQUEST_URI_LENGTH"].to_i > 0 ? ENV["MAX_REQUEST_URI_LENGTH"].to_i : 10240
 Mu::log.info("SETUP") { "Set WEBrick MAX_URI_LENGTH to #{max_uri_length}" }
+WEBrick::HTTPRequest.send(:remove_const, :MAX_URI_LENGTH) if defined?(WEBrick::HTTPRequest::MAX_URI_LENGTH)
 WEBrick::HTTPRequest.const_set("MAX_URI_LENGTH", max_uri_length)
 max_header_length = ENV["MAX_REQUEST_HEADER_LENGTH"].to_i > 0 ? ENV["MAX_REQUEST_HEADER_LENGTH"].to_i : 1024000
 Mu::log.info("SETUP") { "Set WEBrick MAX_HEADER_LENGTH to #{max_header_length}" }
+WEBrick::HTTPRequest.send(:remove_const, :MAX_HEADER_LENGTH) if defined?(WEBrick::HTTPRequest::MAX_HEADER_LENGTH)
 WEBrick::HTTPRequest.const_set("MAX_HEADER_LENGTH", max_header_length)
-Psych::Parser.code_point_limit= 20_000_000
+max_yaml_size = ENV["MAX_YAML_SIZE"].to_i > 0 ? ENV["MAX_YAML_SIZE"].to_i : 20_000_000
+Psych::Parser.code_point_limit= max_yaml_size
 
 Mu::log.formatter = proc do |severity, datetime, progname, msg|
   "#{severity} [\##{$$}] #{progname} -- #{msg}\n"
 end
+
+helpers MuSearch::JsonApi
+helpers MuSearch::AuthorizationUtils
 
 before do
   request.path_info.chomp!('/')
@@ -48,7 +46,7 @@ end
 ##
 # Setup index manager based on configuration
 ##
-def setup_index_manager(elasticsearch, tika, sparql_connection_pool, config)
+def setup_index_manager(elasticsearch, config)
   search_configuration = config.select do |key|
     [:type_definitions, :default_index_settings,
      :persist_indexes, :eager_indexing_groups, :number_of_threads,
@@ -59,15 +57,13 @@ def setup_index_manager(elasticsearch, tika, sparql_connection_pool, config)
   MuSearch::IndexManager.new(
     logger: Mu::log,
     elasticsearch: elasticsearch,
-    tika: tika,
-    sparql_connection_pool: sparql_connection_pool,
     search_configuration: search_configuration)
 end
 
 ##
 # Setup delta handling based on configuration
 ##
-def setup_delta_handling(index_manager, elasticsearch, tika, sparql_connection_pool, config)
+def setup_delta_handling(index_manager, elasticsearch, config)
   if config[:automatic_index_updates]
     search_configuration = config.select do |key|
       [:type_definitions, :number_of_threads, :update_wait_interval_minutes,
@@ -77,8 +73,6 @@ def setup_delta_handling(index_manager, elasticsearch, tika, sparql_connection_p
       logger: Mu::log,
       index_manager: index_manager,
       elasticsearch: elasticsearch,
-      tika: tika,
-      sparql_connection_pool: sparql_connection_pool,
       search_configuration: search_configuration)
   else
     search_configuration = config.select do |key|
@@ -92,7 +86,6 @@ def setup_delta_handling(index_manager, elasticsearch, tika, sparql_connection_p
 
   delta_handler = MuSearch::DeltaHandler.new(
     logger: Mu::log,
-    sparql_connection_pool: sparql_connection_pool,
     update_handler: handler,
     search_configuration: { type_definitions: config[:type_definitions] })
   delta_handler
@@ -108,37 +101,27 @@ configure do
   configuration = MuSearch::ConfigParser.parse('/config/config.json')
   set configuration
 
-  tika = Tika.new(
-    host: 'tika',
-    port: 9998,
-    logger: Mu::log
-  )
+  connection_pool_size = configuration[:connection_pool_size]
+  MuSearch::Tika::ConnectionPool.setup(size: connection_pool_size)
 
-  elasticsearch = Elastic.new(
-    host: 'elasticsearch',
-    port: 9200,
-    logger: Mu::log
-  )
+  elasticsearch = MuSearch::Elastic.new(size: connection_pool_size)
   set :elasticsearch, elasticsearch
 
-  sparql_connection_pool = MuSearch::SPARQL::ConnectionPool.new(
-    number_of_threads: configuration[:number_of_threads],
-    logger: Mu::log
-  )
+  MuSearch::SPARQL::ConnectionPool.setup(size: connection_pool_size)
 
   until elasticsearch.up?
     Mu::log.info("SETUP") { "...waiting for elasticsearch..." }
     sleep 1
   end
 
-  until sparql_connection_pool.up?
+  until MuSearch::SPARQL::ConnectionPool.up?
     Mu::log.info("SETUP") { "...waiting for SPARQL endpoint..." }
     sleep 1
   end
 
-  index_manager = setup_index_manager elasticsearch, tika, sparql_connection_pool, configuration
+  index_manager = setup_index_manager elasticsearch, configuration
   set :index_manager, index_manager
-  delta_handler = setup_delta_handling index_manager, elasticsearch, tika, sparql_connection_pool, configuration
+  delta_handler = setup_delta_handling index_manager, elasticsearch, configuration
   set :delta_handler, delta_handler
 end
 
@@ -165,13 +148,7 @@ end
 #
 # See README for more information about the filter syntax.
 get "/:path/search" do |path|
-  begin
-    allowed_groups = get_allowed_groups_with_fallback
-    Mu::log.debug("AUTHORIZATION") { "Search request received allowed groups #{allowed_groups}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!(with_fallback: true)
 
   elasticsearch = settings.elasticsearch
   index_manager = settings.index_manager
@@ -226,7 +203,7 @@ get "/:path/search" do |path|
     error(e.message, 400)
   rescue StandardError => e
     Mu::log.error("SEARCH") { e.full_message }
-    error(e.inspect, 500)
+    error("Internal server error", 500)
   end
 end
 
@@ -240,13 +217,7 @@ end
 # This endpoint must be used with caution and explicitly enabled in the search config!
 if settings.enable_raw_dsl_endpoint
   post "/:path/search" do |path|
-    begin
-      allowed_groups = get_allowed_groups_with_fallback
-      Mu::log.debug("AUTHORIZATION") { "Search request received allowed groups #{allowed_groups}" }
-    rescue StandardError => e
-      Mu::log.error("AUTHORIZATION") { e.full_message }
-      error("Unable to determine authorization groups", 401)
-    end
+    allowed_groups = authorize!(with_fallback: true)
 
     elasticsearch = settings.elasticsearch
     index_manager = settings.index_manager
@@ -278,7 +249,7 @@ if settings.enable_raw_dsl_endpoint
       error(e.message, 400)
     rescue StandardError => e
       Mu::log.error("SEARCH") { e.full_message }
-      error(e.inspect, 500)
+      error("Internal server error", 500)
     end
   end
 end
@@ -295,31 +266,12 @@ end
 #   Hence, on restart of mu-search, the index will be considered valid again.
 # - an invalidated index will be updated before executing a search query on it.
 post "/:path/index" do |path|
-  begin
-    allowed_groups = get_allowed_groups
-    Mu::log.debug("AUTHORIZATION") { "Index update request received allowed groups #{allowed_groups || 'none'}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!
 
   index_type = path == "_all" ? nil : path
-  index_manager = settings.index_manager
-  indexes = index_manager.fetch_indexes index_type, allowed_groups, force_update: true
+  indexes = settings.index_manager.fetch_indexes index_type, allowed_groups, force_update: true
 
-  data = indexes.map do |index|
-    {
-      type: "indexes",
-      id: index.name,
-      attributes: {
-        uri: index.uri,
-        status: index.status,
-        'allowed-groups' => index.allowed_groups
-      }
-    }
-  end
-
-  { data: data }.to_json
+  format_index_response(indexes)
 end
 
 # Invalidates the indexes for the given :path.
@@ -335,31 +287,12 @@ end
 #   Hence, on restart of mu-search, the index will be considered valid again.
 # - an invalidated index will be updated before executing a search query on it.
 post "/:path/invalidate" do |path|
-  begin
-    allowed_groups = get_allowed_groups
-    Mu::log.debug("AUTHORIZATION") { "Index invalidation request received allowed groups #{allowed_groups || 'none'}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!
 
   index_type = path == "_all" ? nil : path
-  index_manager = settings.index_manager
-  indexes = index_manager.invalidate_indexes index_type, allowed_groups
+  indexes = settings.index_manager.invalidate_indexes index_type, allowed_groups
 
-  data = indexes.map do |index|
-    {
-      type: "indexes",
-      id: index.name,
-      attributes: {
-        uri: index.uri,
-        status: index.status,
-        'allowed-groups' => index.allowed_groups
-      }
-    }
-  end
-
-  { data: data }.to_json
+  format_index_response(indexes)
 end
 
 # Removes the indexes for the given :path.
@@ -371,35 +304,39 @@ end
 #
 # Note: a removed index will be recreated before executing a search query on it.
 delete "/:path" do |path|
-  begin
-    allowed_groups = get_allowed_groups
-    Mu::log.debug("AUTHORIZATION") { "Index delete request received allowed groups #{allowed_groups || 'none'}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_groups = authorize!
 
   index_type = path == "_all" ? nil : path
-  index_manager = settings.index_manager
-  indexes = index_manager.remove_indexes index_type, allowed_groups
+  indexes = settings.index_manager.remove_indexes index_type, allowed_groups
 
-  data = indexes.map do |index|
-    {
-      type: "indexes",
-      id: index.name,
-      attributes: {
-        uri: index.uri,
-        status: index.status,
-        'allowed-groups' => index.allowed_groups
-      }
-    }
-  end
-
-  { data: data }.to_json
+  format_index_response(indexes)
 end
 
 # Health report
 # TODO Make this more descriptive - status of all indexes?
 get "/health" do
+  settings.index_manager.indexes.inspect
   { status: "up" }.to_json
+end
+
+get "/indexes" do
+  # grab index info from index_manager
+  # indexes are kept as indexes[type][serialized_allowed_groups] = actual_index_config (class SearchIndex)
+  # so we just extract actual_index_config with the line below
+  index_info = settings.index_manager.indexes.values.flatten.map{ |x| x.values }.flatten
+  elastic_stats = settings.elasticsearch.index_stats
+  response = []
+  index_info.each do |index|
+    response << {
+      uri: index.uri,
+      name: index.name,
+      type: index.type_name,
+      is_eager_index: index.is_eager_index,
+      allowed_groups: index.allowed_groups,
+      status: index.status,
+      document_count: elastic_stats.dig('indices', index.name, 'total', 'docs', 'count'),
+      exists_in_elasticsearch: elastic_stats.dig('indices', index.name).nil? ? false : true
+    }
+  end
+  response.to_json
 end

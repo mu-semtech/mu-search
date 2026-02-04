@@ -18,6 +18,7 @@ module MuSearch
         number_of_threads: 1,
         enable_raw_dsl_endpoint: false,
         prefixes: {}
+        connection_pool_size: 20,
       }
 
       json_config = JSON.parse(File.read(path))
@@ -34,7 +35,8 @@ module MuSearch
         { name: "attachments_path_base", parser: :parse_string },
         { name: "common_terms_cutoff_frequency", parser: :parse_float },
         { name: "update_wait_interval_minutes", parser: :parse_float },
-        { name: "number_of_threads", parser: :parse_integer }
+        { name: "number_of_threads", parser: :parse_integer },
+        { name: "connection_pool_size", parser: :parse_integer }
       ].each do |setting|
         name = setting[:name]
         value = self.send(setting[:parser], ENV[name.upcase], json_config[name])

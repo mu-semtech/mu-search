@@ -6,8 +6,7 @@ module MuSearch
   ##
   # This class is responsible for building JSON documents from an IndexDefinition
   class DocumentBuilder
-    def initialize(tika:, sparql_client:, attachment_path_base:, logger:)
-      @tika = tika
+    def initialize(sparql_client:, attachment_path_base:, logger:)
       @sparql_client = sparql_client # authorized client from connection pool
       @attachment_path_base = attachment_path_base
       @cache_path_base = "/cache/"
@@ -91,7 +90,7 @@ module MuSearch
       escaped_source_uri = Mu::sparql_escape_uri(uri)
 
       construct_portion_list = property_query_info.map do |info|
-        escaped_construct_uri = Mu::sparql_escape_uri(info[:construct_uri]),
+        escaped_construct_uri = Mu::sparql_escape_uri(info[:construct_uri])
         "#{escaped_construct_uri} #{escaped_value_prop} #{info[:sparql_where_variable]}."
       end
 
@@ -236,25 +235,27 @@ SPARQL
         file.close
         file_hash = Digest::SHA256.hexdigest blob
         cached_file_path = "#{@cache_path_base}#{file_hash}"
-        if File.exists? cached_file_path
+        if File.exist? cached_file_path
           text_content = File.open(cached_file_path, mode: "rb", encoding: 'utf-8') do |file|
             @logger.debug("TIKA") { "Using cached result #{cached_file_path} for file #{file_path}" }
             file.read
           end
         else
-          text_content = @tika.extract_text file_path, blob
-          if text_content.nil?
-            @logger.info("TIKA") { "Received empty result from Tika for file #{file_path}. File content will not be indexed." }
-            # write emtpy file to make cache hit on next run
-            File.open(cached_file_path, "w") {}
-          else
-            @logger.debug("TIKA") { "Extracting text from #{file_path} and storing result in #{cached_file_path}" }
-            File.open(cached_file_path, "w") do |file|
-              file.puts text_content.force_encoding("utf-8").unicode_normalize
+          MuSearch::Tika::ConnectionPool.with_client do |tika|
+            text_content = tika.extract_text file_path, blob
+            if text_content.nil?
+              @logger.info("TIKA") { "Received empty result from Tika for file #{file_path}. File content will not be indexed." }
+              # write emtpy file to make cache hit on next run
+              File.open(cached_file_path, "w") {}
+            else
+              @logger.debug("TIKA") { "Extracting text from #{file_path} and storing result in #{cached_file_path}" }
+              File.open(cached_file_path, "w") do |file|
+                file.puts text_content.force_encoding("utf-8").unicode_normalize
+              end
             end
+            text_content
           end
         end
-        text_content
       rescue Errno::ENOENT, IOError => e
         @logger.warn("TIKA") { "Error reading file at #{file_path} to extract content. File content will not be indexed." }
         @logger.warn("TIKA") { e.full_message }
@@ -298,10 +299,9 @@ SPARQL
           a_val.concat(b_val).uniq
         elsif a_val.is_a?(Array) && (b_val.is_a?(String) || b_val.is_a?(Integer) || b_val.is_a?(Float))
           [*a_val, b_val].uniq
-        elsif a_val.is_a?(Hash)
-          # b_val must also be a hash
+        elsif a_val.is_a?(Hash) && b_val.is_a?(Hash)
           smart_merge(a_val, b_val)
-        elsif  b_val.is_a?(Array) && (b_val.is_a?(String) || b_val.is_a?(Integer) || b_val.is_a?(Float))
+        elsif  b_val.is_a?(Array) && (a_val.is_a?(String) || a_val.is_a?(Integer) || a_val.is_a?(Float))
           # a_val can not be nil or an array, so must be a simple value
           [*b_val, a_val].uniq
         elsif (a_val.is_a?(String) || a_val.is_a?(Integer) || a_val.is_a?(Float)) &&
