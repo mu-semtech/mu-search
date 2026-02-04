@@ -18,8 +18,8 @@ services:
     volumes:
       - ./config/search:/config
       - ./data/search:/data
-      - ./data/files:/share # in case your index files
-      - ./data/tika/cache:/cache # in case your index files
+      - ./data/files:/share # in case you index files
+      - ./data/tika/cache:/cache # in case you index files
 ```
 
 **Features**
