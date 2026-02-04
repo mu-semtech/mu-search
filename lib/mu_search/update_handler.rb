@@ -14,7 +14,7 @@ module MuSearch
   class UpdateHandler
     ##
     # default interval to wait before applying changes
-    DEFAULT_WAIT_INTERVAL_MINUTES = 8
+    DEFAULT_WAIT_INTERVAL_MINUTES = 1
     ##
     # default number of threads to use for handling updates
     DEFAULT_NUMBER_OF_THREADS = 2
