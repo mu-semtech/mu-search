@@ -18,34 +18,27 @@ module MuSearch
       @logger = logger
       @type_definitions = search_configuration[:type_definitions]
       @update_handler = update_handler
-      # FIFO queue of deltas
-      @queue = []
-      @mutex = Mutex.new
+      # Thread-safe FIFO queue of deltas
+      @queue = Queue.new
       setup_runner
     end
 
-    # Setup a runner per thread to handle updates
+    # Setup a runner thread to handle updates.
+    # Blocks on @queue.shift until a delta is available.
     def setup_runner
       @runner = Thread.new(abort_on_exception: true) do
         @logger.info("DELTA") { "Runner ready for duty" }
         loop do
-          triple = delta = resource_configs = nil
+          delta = nil
           begin
-            @mutex.synchronize do
-              if @queue.length > 0
-                delta = @queue.shift
-              end
-            end
-            if delta
-              triples = delta[:triples]
-              resource_configs = delta[:resource_configs]
-              handle_queue_entry(triples, resource_configs)
-            end
+            delta = @queue.shift # blocks until an item is available
+            triples = delta[:triples]
+            resource_configs = delta[:resource_configs]
+            handle_queue_entry(triples, resource_configs)
           rescue StandardError => e
             @logger.error("DELTA") { "Failed processing delta #{delta.pretty_inspect}" }
             @logger.error("DELTA") { e.full_message }
           end
-          sleep 0.05
         end
       end
     end
@@ -84,9 +77,7 @@ module MuSearch
         @logger.debug("DELTA") { "Delta affects #{type_names.length} search indexes: #{type_names.join(', ')}" }
       end
 
-      @mutex.synchronize do
-        @queue << { triples: triples, resource_configs: search_configs }
-      end
+      @queue.push({ triples: triples, resource_configs: search_configs })
     end
 
     ##
