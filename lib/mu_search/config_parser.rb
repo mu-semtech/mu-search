@@ -17,7 +17,7 @@ module MuSearch
         update_wait_interval_minutes: 1,
         number_of_threads: 1,
         enable_raw_dsl_endpoint: false,
-        prefixes: {}
+        prefixes: {},
         connection_pool_size: 20,
       }
 
