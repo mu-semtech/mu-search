@@ -274,10 +274,9 @@ module MuSearch
       formatted_rows = rows.map { |row| "(#{row.join(' ')})" }.join(" ")
 
       sparql = "SELECT DISTINCT ?s WHERE {\n"
+      sparql += "\t VALUES ?type { #{rdf_type_terms.join(' ')} } . \n"
+      sparql += "\t VALUES #{vars} { #{formatted_rows} } \n"
       sparql += "\t ?s a ?type. \n"
-      sparql += "FILTER(?type IN (#{rdf_type_terms.join(',')})) . \n"
-      sparql += "\t VALUES #{vars} { #{formatted_rows} } . \n"
-
       if position > 0
         path_to_target_term = MuSearch::SPARQL::make_predicate_string(property_path_to_target)
         sparql += "\t ?s #{path_to_target_term} ?target_sub . \n"
