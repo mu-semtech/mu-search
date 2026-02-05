@@ -217,7 +217,7 @@ module MuSearch
           end
         end
       end
-      indexes = @indexes[type_name].values.find_all(&:eager_index?)
+      indexes = @indexes[type_name]&.values&.find_all(&:eager_index?) || []
       @logger.debug("INDEX MGMT") { "Currently known indexes for type '#{type_name}': #{indexes.map(&:allowed_groups).to_json}" }
       # Find all indexes with allowed_groups that are a subset of the given allowed_groups
       matching_indexes = indexes.find_all do |idx|
