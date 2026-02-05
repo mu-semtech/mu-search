@@ -16,6 +16,7 @@ require_relative 'lib/mu_search/elastic.rb'
 require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
 require_relative 'lib/mu_search/json_api.rb'
+require_relative 'lib/mu_search/query_validator.rb'
 
 ##
 # WEBrick setup
@@ -37,6 +38,7 @@ end
 
 helpers MuSearch::JsonApi
 helpers MuSearch::AuthorizationUtils
+helpers MuSearch::QueryValidator
 
 before do
   request.path_info.chomp!('/')
@@ -217,6 +219,8 @@ end
 # This endpoint must be used with caution and explicitly enabled in the search config!
 if settings.enable_raw_dsl_endpoint
   post "/:path/search" do |path|
+    validate_raw_query!(@json_body)
+
     allowed_groups = authorize!(with_fallback: true)
 
     elasticsearch = settings.elasticsearch

@@ -29,10 +29,7 @@ module MuSearch
     #   - uri: URI of the resource to fetch
     #   - properties: Array of raw properties as configured in the search config
     def fetch_document_to_index(uri: nil, properties: nil)
-      property_definitions = properties.map do |key, prop_config|
-        PropertyDefinition.from_json_config(key, prop_config)
-      end
-      construct_document_to_index(uri: uri, definitions: property_definitions)
+      construct_document_to_index(uri: uri, definitions: properties)
     end
 
     ##

@@ -408,6 +408,7 @@ In the example below the documents index contains a property `topics` that maps 
 }
 ```
 
+
 ##### File content property
 To make the content of a file searchable, it needs to be indexed as a property in a search index. Basic indexing of PDF, Word etc. files is provided using a local [Apache Tika](https://tika.apache.org/) instance. A default ingest pipeline named `attachment` is created on startup of the mu-search service. Note that this is under development and liable to change.
 
@@ -643,6 +644,30 @@ The example below contains 2 simple indexes for documents and creative works, an
             ]
          }
     ]
+}
+```
+#### Using Prefixes
+To make the configuration more concise and maintainable, you can define prefixes for commonly used URI namespaces. Prefixes are defined at the root level of the configuration using the `prefixes` property:
+
+```json
+{
+  "prefixes": {
+    "foaf": "http://xmlns.com/foaf/0.1/",
+    "dct": "http://purl.org/dc/terms/",
+    "skos": "http://www.w3.org/2004/02/skos/core#"
+  },
+  "types": [
+    {
+      "type": "document",
+      "on_path": "documents",
+      "rdf_type": "foaf:Document",
+      "properties": {
+        "title": "dct:title",
+        "label": "skos:prefLabel",
+        "creator": "^foaf:made"
+      }
+    }
+  ]
 }
 ```
 

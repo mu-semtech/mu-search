@@ -123,26 +123,25 @@ class ElasticQueryBuilder
 
   # Excludes fields containing file contents
   # from the _source field in the search results
-  #
-  # TODO correctly handle nested objects
-  # TODO correctly handle composite types
   def build_source_fields
-    props = @type_def["properties"]
-    if props.is_a?(Array)
-      props.each { |p| filter_file_fields p }
-    elsif props.is_a?(Hash)
-      filter_file_fields props
+    excludes = collect_attachment_fields(@type_def.properties)
+    unless excludes.empty?
+      @es_query["_source"] = { excludes: excludes }
     end
     self
   end
 
-  def filter_file_fields(p)
-      file_fields = p.select do |key, val|
-        val.is_a?(Hash) && val["attachment_pipeline"]
+  def collect_attachment_fields(properties, prefix = nil)
+    properties.flat_map do |prop|
+      field_name = prefix ? "#{prefix}.#{prop.name}" : prop.name
+      if prop.type == "attachment"
+        [field_name]
+      elsif prop.type == "nested" && prop.sub_properties
+        collect_attachment_fields(prop.sub_properties, field_name)
+      else
+        []
       end
-      @es_query["_source"] = {
-        excludes: file_fields.keys
-      }
+    end
   end
 
   private
