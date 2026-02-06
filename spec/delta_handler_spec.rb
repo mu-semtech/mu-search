@@ -164,7 +164,7 @@ RSpec.describe MuSearch::DeltaHandler do
   describe '#group_triples_by_query_shape' do
     let(:known_subjects) { Set.new(["http://example.org/s1"]) }
 
-    it 'filters out mu:uuid triples' do
+    it 'groups mu:uuid triples like regular properties' do
       triples = [
         make_triple(
           subject: "http://example.org/s1",
@@ -174,6 +174,19 @@ RSpec.describe MuSearch::DeltaHandler do
         )
       ]
       groups = handler.send(:group_triples_by_query_shape, triples, session_config, Set.new)
+      expect(groups).not_to be_empty
+    end
+
+    it 'skips mu:uuid triples when subject is already known' do
+      triples = [
+        make_triple(
+          subject: "http://example.org/s1",
+          predicate: "http://mu.semte.ch/vocabularies/core/uuid",
+          object_value: "some-uuid",
+          object_type: "literal"
+        )
+      ]
+      groups = handler.send(:group_triples_by_query_shape, triples, session_config, known_subjects)
       expect(groups).to be_empty
     end
 
@@ -573,7 +586,7 @@ RSpec.describe MuSearch::DeltaHandler do
   end
 
   describe '#handle_deltas' do
-    it 'filters out mu:uuid triples before queueing' do
+    it 'queues mu:uuid triples so updates are triggered when uuid is added separately' do
       deltas = [
         {
           "inserts" => [
@@ -587,10 +600,9 @@ RSpec.describe MuSearch::DeltaHandler do
         }
       ]
 
-      # Should return early since all triples are mu:uuid
       handler.handle_deltas(deltas)
       queue = handler.instance_variable_get(:@queue)
-      expect(queue).to be_empty
+      expect(queue).not_to be_empty
     end
 
     it 'queues non-uuid triples with their affected configs' do

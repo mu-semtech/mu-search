@@ -10,7 +10,6 @@ module MuSearch
   # NOTE: in theory the handler has a pretty good idea what has changed
   #       it may be possible to have finer grained updates on es documents than we currently have
   class DeltaHandler
-    MU_UUID_PREDICATE = "http://mu.semte.ch/vocabularies/core/uuid".freeze
     RDF_TYPE_PREDICATE = RDF.type.to_s.freeze
     DEFAULT_DELTA_BATCH_SIZE = 100
 
@@ -60,11 +59,7 @@ module MuSearch
           triples.concat(changeset["inserts"].map { |triple| triple.merge({ "is_addition" => true }) })
           triples.concat(changeset["deletes"].map { |triple| triple.merge({ "is_addition" => false }) })
         end
-        # Filter out mu:uuid triples - they match all type configs but don't
-        # carry useful information for subject discovery
-        triples.reject! { |triple| triple["predicate"]["value"] == MU_UUID_PREDICATE }
-        return if triples.empty?
-        find_config_and_queue_delta(triples)
+        find_config_and_queue_delta(triples) unless triples.empty?
       else
         @logger.error("DELTA") { "Received delta does not seem to be in v0.0.1 format. Mu-search currently only supports delta format v0.0.1 " }
         @logger.error("DELTA") { deltas.pretty_inspect }
@@ -155,7 +150,7 @@ module MuSearch
     end
 
     ##
-    # Groups non-type/non-uuid triples by their query shape.
+    # Groups non-type triples by their query shape.
     # A shape key is [path, position, is_inverse, is_addition].
     # Skips position-0 non-inverse matches where the subject is already in known_subjects
     # (those were already identified in Phase 1).
@@ -169,8 +164,7 @@ module MuSearch
         is_addition = triple["is_addition"]
 
         # rdf:type triples are handled by collect_known_subjects
-        # mu:uuid triples match all configs and don't help with subject discovery
-        next if predicate == RDF_TYPE_PREDICATE || predicate == MU_UUID_PREDICATE
+        next if predicate == RDF_TYPE_PREDICATE
 
         matching_paths = config.full_property_paths_for(predicate)
         matching_paths.each do |path|
