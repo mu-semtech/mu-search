@@ -1176,6 +1176,16 @@ For security reasons, the endpoint is disabled by default. It can be enabled by 
 
 Some queries require so many parameters or parameters of such a large size, that they don't fit in the max length of a url. This can be the case for embedding-based searches, for instance, as you need to provide the full target vector to search for. To get around this limitation, the `POST /:type/large-search` endpoint can be used.
 
+For instance, embedding vectors can be quite large and require this endpoint with body:
+
+```json
+{
+  "filter": {
+    ":embedding:description-vector": "<num results>:<num approx close considered>:<your vector as comma separated string>"
+  }
+}
+```
+
 This endpoint behaves in the same way as the `GET /:type/search` endpoint, but all the query params are instead sent in the JSON body of the request.
 
 #### Admin endpoints
