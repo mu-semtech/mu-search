@@ -17,6 +17,7 @@ require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
 require_relative 'lib/mu_search/json_api.rb'
 require_relative 'lib/mu_search/query_validator.rb'
+require_relative 'lib/mu_search/metrics.rb'
 
 ##
 # WEBrick setup
@@ -43,6 +44,19 @@ helpers MuSearch::QueryValidator
 before do
   request.path_info.chomp!('/')
   content_type 'application/vnd.api+json'
+  @request_start_time = Time.now unless request.path_info == '/metrics'
+end
+
+after do
+  unless request.path_info == '/metrics' || @request_start_time.nil?
+    duration = Time.now - @request_start_time
+    MuSearch::Metrics.record_request(
+      endpoint: request.path_info,
+      method: request.request_method,
+      status: response.status,
+      duration: duration
+    )
+  end
 end
 
 ##
@@ -128,6 +142,8 @@ configure do
   set :index_manager, index_manager
   delta_handler = setup_delta_handling index_manager, elasticsearch, configuration
   set :delta_handler, delta_handler
+
+  MuSearch::Metrics.setup
 end
 
 ###
@@ -321,6 +337,17 @@ delete "/:path" do |path|
   indexes = settings.index_manager.remove_indexes index_type, allowed_groups
 
   format_index_response(indexes)
+end
+
+# Prometheus metrics endpoint
+get "/metrics" do
+  content_type 'text/plain; version=0.0.4; charset=utf-8'
+  MuSearch::Metrics.collect_metrics(
+    index_manager: settings.index_manager,
+    delta_handler: settings.delta_handler,
+    elasticsearch: settings.elasticsearch
+  )
+  MuSearch::Metrics.render
 end
 
 # Health report

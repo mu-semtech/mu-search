@@ -12,6 +12,8 @@ module MuSearch
   # UpdateHandler.new(...) do |subject, index_names, type|
   # end
   class UpdateHandler
+    attr_reader :queue, :runners
+
     ##
     # default interval to wait before applying changes
     DEFAULT_WAIT_INTERVAL_MINUTES = 1
@@ -120,6 +122,7 @@ module MuSearch
               end
               @logger.debug("UPDATE HANDLER") { "Handling update of #{subject}" }
               handler(subject, index_types, type)
+              MuSearch::Metrics.increment_updates_processed if defined?(MuSearch::Metrics)
             rescue StandardError => e
               @logger.error("UPDATE HANDLER") { "Update of subject <#{subject}> failed" }
               @logger.error("UPDATE HANDLER") { e.full_message }
