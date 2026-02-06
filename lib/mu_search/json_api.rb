@@ -73,7 +73,7 @@ module MuSearch
     # Extracts the hits array from an Elasticsearch response.
     # Returns an empty array if results is not a valid ES response hash.
     def extract_hits(results)
-      return [] unless results.is_a?(Hash)
+      return [] unless results.respond_to?(:dig)
       results.dig("hits", "hits") || []
     end
 
