@@ -167,7 +167,7 @@ module MuSearch
     end
 
     def matches_property?(property)
-      @property_path_cache.keys.include?(property) || @property_path_cache.keys.include?("^#{property}")
+      @property_path_cache.key?(property) || @property_path_cache.key?("^#{property}")
     end
 
     def full_property_paths_for(property)

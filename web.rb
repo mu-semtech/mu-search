@@ -89,7 +89,10 @@ def setup_delta_handling(index_manager, elasticsearch, config)
   delta_handler = MuSearch::DeltaHandler.new(
     logger: Mu::log,
     update_handler: handler,
-    search_configuration: { type_definitions: config[:type_definitions] })
+    search_configuration: {
+      type_definitions: config[:type_definitions],
+      delta_batch_size: config[:delta_batch_size]
+    })
   delta_handler
 end
 
