@@ -57,6 +57,7 @@ module MuSearch
     # type should be either :update or :delete
     def add(subject, index_type, type)
       @mutex.synchronize do
+        was_empty = @queue.empty?
         # Add subject to queue if an update for the same subject hasn't been scheduled before
         if !@subject_map.has_key? subject
           @logger.debug("UPDATE HANDLER") { "Add update for subject <#{subject}> to queue" }
@@ -65,6 +66,9 @@ module MuSearch
           @logger.debug("UPDATE HANDLER") { "Update for subject <#{subject}> already scheduled" }
         end
         @subject_map[subject].add(index_type)
+        # Only signal when the queue was empty, as runners are already
+        # waiting with a timeout when there are items in the queue
+        @condition.signal if was_empty
       end
     end
 
@@ -84,8 +88,10 @@ module MuSearch
 
     private
 
-    # Setup a runner per thread to handle updates
+    # Setup a runner per thread to handle updates.
+    # Threads block on @condition until an item is ready to be processed.
     def setup_runners
+      @condition = ConditionVariable.new
       @runners = (0...@number_of_threads).map do |i|
         Thread.new(abort_on_exception: true) do
           @logger.debug("UPDATE HANDLER") { "Runner #{i} ready for duty" }
@@ -93,27 +99,31 @@ module MuSearch
             change = subject = index_types = type = nil
             begin
               @mutex.synchronize do
-                if @queue.length > 0 && (DateTime.now - @queue[0][:timestamp]) > @min_wait_time
-                  change = @queue.shift
-                  subject = change[:subject]
-                  type = change[:type]
-                  index_types = @subject_map.delete(subject)
+                until @queue.length > 0 && (DateTime.now - @queue[0][:timestamp]) > @min_wait_time
+                  if @queue.length > 0
+                    # Wait until the oldest item is ready
+                    remaining_seconds = (@min_wait_time - (DateTime.now - @queue[0][:timestamp])) * 86400.0
+                    @condition.wait(@mutex, [remaining_seconds, 0.1].max)
+                  else
+                    # Queue empty, wait until signaled
+                    @condition.wait(@mutex)
+                  end
                 end
+                change = @queue.shift
+                subject = change[:subject]
+                type = change[:type]
+                index_types = @subject_map.delete(subject)
               end
-              if !change.nil?
-                large_queue = 500
-                if (@queue.length > large_queue) && (large_queue % @number_of_threads == 0)
-                  # log only once per nb_of_threads
-                  @logger.warn("UPDATE HANDLER") { "Large number of updates (#{@queue.length}) in queue" }
-                end
-                @logger.debug("UPDATE HANDLER") { "Handling update of #{subject}" }
-                handler(subject, index_types, type)
+
+              if @queue.length > 500 && @queue.length % 100 == 0
+                @logger.warn("UPDATE HANDLER") { "Large number of updates (#{@queue.length}) in queue" }
               end
+              @logger.debug("UPDATE HANDLER") { "Handling update of #{subject}" }
+              handler(subject, index_types, type)
             rescue StandardError => e
               @logger.error("UPDATE HANDLER") { "Update of subject <#{subject}> failed" }
               @logger.error("UPDATE HANDLER") { e.full_message }
             end
-            sleep 0.5
           end
         end
       end

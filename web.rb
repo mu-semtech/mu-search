@@ -184,9 +184,13 @@ get "/:path/search" do |path|
     else
       search_query = query_builder.build_search_query
 
-      while indexes.any? { |index| index.status == :updating }
-        Mu::log.info("SEARCH") { "Waiting for indexes to be up-to-date..." }
-        sleep 0.5
+      updating_indexes = indexes.select { |index| index.status == :updating }
+      updating_indexes.each do |index|
+        Mu::log.info("SEARCH") { "Waiting for index #{index.name} to finish updating..." }
+        unless index.wait_until_ready(timeout: 60)
+          Mu::log.warn("SEARCH") { "Timeout waiting for index #{index.name} to finish updating" }
+          halt 503, { "errors" => [{ "title" => "Search index is currently being rebuilt. Try again later." }] }.to_json
+        end
       end
       Mu::log.debug("SEARCH") { "All indexes are up to date" }
 
