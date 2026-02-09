@@ -148,7 +148,7 @@ configure do
   MuSearch::SPARQL::ConnectionPool.setup(size: connection_pool_size)
 
   until elasticsearch.up?
-    Mu::log.info("SETUP") { "...waiting for elasticsearch...." }
+    Mu::log.info("SETUP") { "...waiting for elasticsearch..." }
     sleep 1
   end
 
@@ -276,51 +276,6 @@ post "/:path/large-search" do |path|
   end
 end
 
-# same as get on /:path/search but with the params in the body as json instead,
-# for long search messages that don't fit in a url, e.g. embedding vectors
-post "/:path/large-search" do |path|
-  allowed_gropus = authorize!(with_fallback: true)
-
-  elasticsearch = settings.elasticsearch
-  index_manager = settings.index_manager
-  type_def = settings.type_definitions.values.find { |type_def| type_def["on_path"] == path }
-
-  begin
-    raise ArgumentError, "No search configuration found for path #{path}" if type_def.nil?
-
-    indexes = index_manager.fetch_indexes(type_def["type"], allowed_groups)
-
-    search_configuration = {
-      common_terms_cutoff_frequency: settings.common_terms_cutoff_frequency
-    }
-
-    filter = @json_body["filter"]
-    page = @json_body["page"]
-    sort = @json_body["sort"]
-    count = @json_body["count"]
-    highlight = @json_body["highlight"]
-    collapse_uuids = @json_body["collapse_uuids"]
-
-    query_builder = ElasticQueryBuilder.new(
-      logger: Mu::log,
-      type_definition: type_def,
-      filter: filter,
-      page: page,
-      sort: sort,
-      count: count,
-      highlight: highlight,
-      collapse_uuids: collapse_uuids,
-      search_configuration: search_configuration)
-
-    perform_search(query_builder, indexes)
-  rescue ArgumentError => e
-    error(e.message, 400)
-  rescue StandardError => e
-    Mu::log.error("SEARCH") { e.full_message }
-    error(e.inspect, 500)
-  end
-end
-
 # Execute a search query by passing a raw Elasticsearch Query DSL as request body
 #
 # The search is only performed on indexes the user has access to
@@ -432,7 +387,7 @@ end
 # TODO Make this more descriptive - status of all indexes?
 get "/health" do
   settings.index_manager.indexes.inspect
-  { status: "up", version: 1 }.to_json
+  { status: "up" }.to_json
 end
 
 get "/indexes" do
