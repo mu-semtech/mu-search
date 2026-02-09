@@ -1,5 +1,7 @@
 # Changelog
 ## Unreleased
+
+## v0.12.0
 **Features**
 - Support for Elasticsearch 9.2.0 (via elasticsearch gem 9.x)
 - Backward compatible with Elasticsearch 7.x backends
