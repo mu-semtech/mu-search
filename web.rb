@@ -96,6 +96,39 @@ def setup_delta_handling(index_manager, elasticsearch, config)
   delta_handler
 end
 
+def perform_search(query_builder, indexes)
+  if indexes.length == 0
+    Mu::log.info("SEARCH") { "No indexes found to search in. Returning empty result" }
+    format_search_results(type_def["type"], 0, query_builder.page_number, query_builder.page_size, []).to_json
+  else
+    search_query = query_builder.build_search_query
+
+    updating_indexes = indexes.select { |index| index.status == :updating }
+    updating_indexes.each do |index|
+      Mu::log.info("SEARCH") { "Waiting for index #{index.name} to finish updating..." }
+      unless index.wait_until_ready(timeout: 60)
+        Mu::log.warn("SEARCH") { "Timeout waiting for index #{index.name} to finish updating" }
+        halt 503, { "errors" => [{ "title" => "Search index is currently being rebuilt. Try again later." }] }.to_json
+      end
+    end
+    Mu::log.debug("SEARCH") { "All indexes are up to date" }
+
+    index_names = indexes.map { |index| index.name }
+    search_results = elasticsearch.search_documents indexes: index_names, query: search_query
+    count =
+      if query_builder.collapse_uuids
+        search_results.dig("aggregations", "type_count", "value")
+      elsif query_builder.use_exact_count
+        search_results.dig("hits", "total", "value")
+      else
+        count_query = query_builder.build_count_query
+        elasticsearch.count_documents indexes: index_names, query: count_query
+      end
+    Mu::log.debug("SEARCH") { "Found #{count} results" }
+    format_search_results(type_def["type"], count, query_builder.page_number, query_builder.page_size, search_results).to_json
+  end
+end
+
 ##
 # Configures the system and makes sure everything is up.
 ##
@@ -177,37 +210,7 @@ get "/:path/search" do |path|
       highlight: params["highlight"],
       collapse_uuids: params["collapse_uuids"],
       search_configuration: search_configuration)
-
-    if indexes.length == 0
-      Mu::log.info("SEARCH") { "No indexes found to search in. Returning empty result" }
-      format_search_results(type_def["type"], 0, query_builder.page_number, query_builder.page_size, []).to_json
-    else
-      search_query = query_builder.build_search_query
-
-      updating_indexes = indexes.select { |index| index.status == :updating }
-      updating_indexes.each do |index|
-        Mu::log.info("SEARCH") { "Waiting for index #{index.name} to finish updating..." }
-        unless index.wait_until_ready(timeout: 60)
-          Mu::log.warn("SEARCH") { "Timeout waiting for index #{index.name} to finish updating" }
-          halt 503, { "errors" => [{ "title" => "Search index is currently being rebuilt. Try again later." }] }.to_json
-        end
-      end
-      Mu::log.debug("SEARCH") { "All indexes are up to date" }
-
-      index_names = indexes.map { |index| index.name }
-      search_results = elasticsearch.search_documents indexes: index_names, query: search_query
-      count =
-        if query_builder.collapse_uuids
-          search_results.dig("aggregations", "type_count", "value")
-        elsif query_builder.use_exact_count
-          search_results.dig("hits", "total", "value")
-        else
-          count_query = query_builder.build_count_query
-          elasticsearch.count_documents indexes: index_names, query: count_query
-        end
-      Mu::log.debug("SEARCH") { "Found #{count} results" }
-      format_search_results(type_def["type"], count, query_builder.page_number, query_builder.page_size, search_results).to_json
-    end
+    perform_search(query_builder, indexes)
   rescue ArgumentError => e
     error(e.message, 400)
   rescue StandardError => e
@@ -219,13 +222,7 @@ end
 # same as get on /:path/search but with the params in the body as json instead,
 # for long search messages that don't fit in a url, e.g. embedding vectors
 post "/:path/large-search" do |path|
-  begin
-    allowed_groups = get_allowed_groups_with_fallback
-    Mu::log.debug("AUTHORIZATION") { "Search request received allowed groups #{allowed_groups}" }
-  rescue StandardError => e
-    Mu::log.error("AUTHORIZATION") { e.full_message }
-    error("Unable to determine authorization groups", 401)
-  end
+  allowed_gropus = authorize!(with_fallback: true)
 
   elasticsearch = settings.elasticsearch
   index_manager = settings.index_manager
@@ -258,32 +255,7 @@ post "/:path/large-search" do |path|
       collapse_uuids: collapse_uuids,
       search_configuration: search_configuration)
 
-    if indexes.length == 0
-      Mu::log.info("SEARCH") { "No indexes found to search in. Returning empty result" }
-      format_search_results(type_def["type"], 0, query_builder.page_number, query_builder.page_size, []).to_json
-    else
-      search_query = query_builder.build_search_query
-
-      while indexes.any? { |index| index.status == :updating }
-        Mu::log.info("SEARCH") { "Waiting for indexes to be up-to-date..." }
-        sleep 0.5
-      end
-      Mu::log.debug("SEARCH") { "All indexes are up to date" }
-
-      index_names = indexes.map { |index| index.name }
-      search_results = elasticsearch.search_documents indexes: index_names, query: search_query
-      count =
-        if query_builder.collapse_uuids
-          search_results.dig("aggregations", "type_count", "value")
-        elsif query_builder.use_exact_count
-          search_results.dig("hits", "total", "value")
-        else
-          count_query = query_builder.build_count_query
-          elasticsearch.count_documents indexes: index_names, query: count_query
-        end
-      Mu::log.debug("SEARCH") { "Found #{count} results" }
-      format_search_results(type_def["type"], count, query_builder.page_number, query_builder.page_size, search_results).to_json
-    end
+    perform_search(query_builder, indexes)
   rescue ArgumentError => e
     error(e.message, 400)
   rescue StandardError => e
