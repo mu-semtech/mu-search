@@ -1,8 +1,5 @@
 FROM semtech/mu-jruby-template:3.2.1
 
-
-RUN apt-get -y update
-
 LABEL maintainer="redpencil <info@redpencil.io>"
 
 ENV USE_LEGACY_UTILS=false
