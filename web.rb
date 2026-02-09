@@ -96,7 +96,7 @@ def setup_delta_handling(index_manager, elasticsearch, config)
   delta_handler
 end
 
-def perform_search(query_builder, indexes)
+def perform_search(query_builder, indexes, type_def, elasticsearch)
   if indexes.length == 0
     Mu::log.info("SEARCH") { "No indexes found to search in. Returning empty result" }
     format_search_results(type_def["type"], 0, query_builder.page_number, query_builder.page_size, []).to_json
@@ -148,7 +148,7 @@ configure do
   MuSearch::SPARQL::ConnectionPool.setup(size: connection_pool_size)
 
   until elasticsearch.up?
-    Mu::log.info("SETUP") { "...waiting for elasticsearch...." }
+    Mu::log.info("SETUP") { "...waiting for elasticsearch..." }
     sleep 1
   end
 
@@ -210,7 +210,7 @@ get "/:path/search" do |path|
       highlight: params["highlight"],
       collapse_uuids: params["collapse_uuids"],
       search_configuration: search_configuration)
-    perform_search(query_builder, indexes)
+    perform_search(query_builder, indexes, type_def, elasticsearch)
   rescue ArgumentError => e
     error(e.message, 400)
   rescue StandardError => e
@@ -222,7 +222,7 @@ end
 # same as get on /:path/search but with the params in the body as json instead,
 # for long search messages that don't fit in a url, e.g. embedding vectors
 post "/:path/large-search" do |path|
-  allowed_gropus = authorize!(with_fallback: true)
+  allowed_groups = authorize!(with_fallback: true)
 
   elasticsearch = settings.elasticsearch
   index_manager = settings.index_manager
@@ -255,12 +255,12 @@ post "/:path/large-search" do |path|
       collapse_uuids: collapse_uuids,
       search_configuration: search_configuration)
 
-    perform_search(query_builder, indexes)
+    perform_search(query_builder, indexes, type_def, elasticsearch)
   rescue ArgumentError => e
     error(e.message, 400)
   rescue StandardError => e
     Mu::log.error("SEARCH") { e.full_message }
-    error(e.inspect, 500)
+    error("Internal server error", 500)
   end
 end
 
@@ -375,7 +375,7 @@ end
 # TODO Make this more descriptive - status of all indexes?
 get "/health" do
   settings.index_manager.indexes.inspect
-  { status: "up", version: 1 }.to_json
+  { status: "up" }.to_json
 end
 
 get "/indexes" do
