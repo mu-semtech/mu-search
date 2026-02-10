@@ -3,7 +3,9 @@
 A component to integrate [authorization-aware](https://github.com/mu-semtech/mu-authorization) full-text search into a [mu.semte.ch stack](https://github.com/mu-semtech/mu-project) using [Elasticsearch](https://www.elastic.co/).
 
 ## Tutorials
+
 ### Add mu-search to a stack
+
 The mu-search service uses Elasticsearch as a backend. Since the Elasticsearch docker image requires a lot of memory, increase the maximum on your system by executing the following command:
 
 ```bash
@@ -26,7 +28,6 @@ services:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
     environment:
       - discovery.type=single-node
-
 ```
 
 Note: because elasticsearch doesn't run as root in its container, it will mess up file permissions on the host system's mounted volumes. The current workaround is to add the directory to your app's git repo with a .gitkeep file and to set the permissions of the directory to 777, then committing this file to your repo.
@@ -37,25 +38,25 @@ Create the `./config/search` directory and create a `config.json` with the follo
 
 ```json
 {
-    "types" : [
-        {
-            "type" : "document",
-            "on_path" : "documents",
-            "rdf_type" : "http://xmlns.com/foaf/0.1/Document",
-            "properties" : {
-                "title" : "http://purl.org/dc/elements/1.1/title",
-                "description" : "http://purl.org/dc/elements/1.1/description"
-            }
-        },
-        {
-            "type" : "user",
-            "on_path" : "users",
-            "rdf_type" : "http://xmlns.com/foaf/0.1/Person",
-            "properties" : {
-                "fullname" : "http://xmlns.com/foaf/0.1/name"
-            }
-         }
-    ]
+  "types": [
+    {
+      "type": "document",
+      "on_path": "documents",
+      "rdf_type": "http://xmlns.com/foaf/0.1/Document",
+      "properties": {
+        "title": "http://purl.org/dc/elements/1.1/title",
+        "description": "http://purl.org/dc/elements/1.1/description"
+      }
+    },
+    {
+      "type": "user",
+      "on_path": "users",
+      "rdf_type": "http://xmlns.com/foaf/0.1/Person",
+      "properties": {
+        "fullname": "http://xmlns.com/foaf/0.1/name"
+      }
+    }
+  ]
 }
 ```
 
@@ -75,6 +76,7 @@ Finally, add the following rules to your dispatcher configuration in `./config/d
 ```
 
 Restart the dispatcher service to pick up the new configuration
+
 ```bash
 docker-compose restart dispatcher
 ```
@@ -84,7 +86,9 @@ Restart the stack using `docker-compose up -d`. The `elasticsearch` and `search`
 Search queries can now be sent to the `/search` endpoint. Make sure the user has access to the data according to the authorization rules.
 
 ## How-to guides
+
 ### How to persist indexes on restart
+
 By default search indexes are deleted on (re)start of the mu-search service. This guide describes how to make sure search indexes are persisted on restart. Obviously, this configuration is recommended on production environments.
 
 First, make sure the search indexes are written to a mounted volume by specifying a bind mount to `/usr/share/elasticsearch/data` on the Elasticsearch container.
@@ -104,6 +108,7 @@ docker-compose up -d
 ```
 
 Next, enable the persistent indexes flag in the root of the search configuration file `./config/search/config.json` of your project.
+
 ```javascript
 {
   "persist_indexes": true,
@@ -122,6 +127,7 @@ docker-compose restart search
 Search indexes will be persisted in `./data/elasticsearch` folder and not be deleted on restart of the search service.
 
 ### How to prepare a search index on startup
+
 The search API provided by mu-search is authorization-aware. I.e. search results will only contain resources the user is allowed to access. To this end mu-search organises its search indexes per access right. Based on the user's allowed groups set on the incoming search requests, mu-search determines which indexes to search in.
 
 Indexes that don't exist yet will be created before the search operation is performed. Depending on the number of documents to index this may be a time-consuming operation.
@@ -131,28 +137,34 @@ Mu-search allows to configure authorization groups for which the indexes need to
 Configuration is done via the `eager_indexing_groups` in the search configuration file `./config/search/config.json`. The eager indexing groups are tightly related to the `GroupSpec`objects configured in [mu-authorization](https://github.com/mu-semtech/mu-authorization#groupspec).
 
 The `eager_indexing_groups` is an array of group specifications. Each group specification is defined by an array of objects in which each object consists of:
+
 - **name**: name of the group specification (`GroupSpec`) in mu-authorization
 - **variables**: array of string values used to construct the graph URI for the group. These variables should match the possible result values of the `vars` in case of an `AccessByQuery` access rule in the `GroupSpec`. In case of an `AlwaysAccessible` access rule, this should be an empty array.
 
 #### Example: public data for unauthenticated users
+
 If the application only provides public data for unauthenticated users in the graph `http://mu.semte.ch/graphs/public`, the following eager indexing groups must be configured:
 
 ```javascript
-[
-  [ { "name": "public", "variables" : [] } ],
-  [ { "name": "clean", "variables": [] } ]
-]
+[[{ name: 'public', variables: [] }], [{ name: 'clean', variables: [] }]];
 ```
 
 #### Example: data per organization unit
+
 If, next to the public data, data is organized per organization unit in graphs like `http://mu.semte.ch/graphs/<unit-name>`, the following eager indexing groups must be configured:
 
 ```javascript
 [
-  [ { "name": "public", "variables" : [] }, { "name": "organization-unit", "variables" : ["finance"] } ],
-  [ { "name": "public", "variables" : [] }, { "name": "organization-unit", "variables" : ["legal"] } ],
-  [ { "name": "clean", "variables": [] } ]
-]
+  [
+    { name: 'public', variables: [] },
+    { name: 'organization-unit', variables: ['finance'] },
+  ],
+  [
+    { name: 'public', variables: [] },
+    { name: 'organization-unit', variables: ['legal'] },
+  ],
+  [{ name: 'clean', variables: [] }],
+];
 ```
 
 In case a group contains a variable, an eager index must be configured for each possible value if you want all search indexes to be prepared upfront.
@@ -160,6 +172,7 @@ In case a group contains a variable, an eager index must be configured for each 
 Eager indexes may be combined at search time to match the user's allowed groups. For example, if some users have access to the data of the finance department as well as the legal department, both indexes will be queried when the user performs a search operation.
 
 ### How to integrate mu-seach with delta's to update search indexes
+
 This how-to guide explains how to integrate mu-search with the delta-notification in order to automatically update search index entries when data in the triplestore is modified.
 
 This guide assumes the [mu-authorization](https://github.com/mu-semtech/mu-authorization#add-mu-authorization-to-a-stack) and [delta-notifier](https://github.com/mu-semtech/delta-notifier) components have been added to your stack as explained in their respective installation guides.
@@ -195,6 +208,7 @@ Enable automatic index updates (not only invalidation) in mu-search by setting t
 ```
 
 Restart the search and delta-notifier service.
+
 ```bash
 docker-compose restart search delta-notifier
 ```
@@ -202,22 +216,23 @@ docker-compose restart search delta-notifier
 Any change you make in your application will now trigger a request to the `/update` endpoint of mu-search. Depending on the indexed resources and properties, mu-search will update the appropriate search index entries.
 
 ### How to specify a file's content as property
+
 This guide explains how to make the content of files attached to a project resource searchable in the index.
 
 This guide assumes you have already integrated mu-search in your application and configured an index for resources of type `schema:Project`.
 
 For indexing files mu-search requires a Tika server to extract the content. Add the `tika` service next to the `search` and `elasticsearch` services in `docker-compose.yml`:
+
 ```yml
 services:
-  search:
-    ...
-  elasticsearch:
-    ...
+  search: ...
+  elasticsearch: ...
   tika:
     image: semtech/mu-search-tika-backend:1.0.0
 ```
 
 Next, add the following mounted volumes to the mu-search service in `docker-compose.yml`:
+
 - `/data`: folder containing the files to be indexed
 - `/cache`: folder to persist Tika's text extraction cache
 
@@ -254,6 +269,7 @@ Next, add a property `files` in the `project` type index configuration. The prop
     ]
 }
 ```
+
 `via` expresses the path from the indexed resource to the file(s) having a URI like `<share://path/to/your/file.pdf>`.
 
 Recreate the mu-search service using
@@ -271,6 +287,7 @@ GET /documents/search?filter[files.content]=open-source"
 ```
 
 ### How to inspect the content of a search index
+
 The content of a search index can be inspected by running a [Kibana](https://www.elastic.co/kibana) dashboard on top of Elasticseach by adding the following snippet to your `docker-compose.override.yml`
 
 ```yaml
@@ -278,7 +295,7 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:7.17.0
     environment:
-      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+      ELASTICSEARCH_HOSTS: 'http://elasticsearch:9200'
     ports:
       - 127.0.0.1:5601:5601
     user: root
@@ -287,6 +304,7 @@ services:
 ```
 
 Start the container
+
 ```bash
 docker-compose up -d kibana
 ```
@@ -296,15 +314,19 @@ Once Kibana has started the dashboard is available at http://localhost:5601
 Make sure not to expose the Kibana dashboard in a production environment!
 
 ### How to reset search indexes
+
 [To be completed...]
 
 ## Reference
+
 ### Search index configuration
+
 Elasticsearch is used as a search engine. It indexes documents according to a specified configuration and provides a REST API to search documents. The mu-search service is a layer in front of Elasticsearch that allows to specify the mapping between RDF triples and the Elasticsearch documents/properties. It also integrates with [mu-authorization](https://github.com/mu-semtech/mu-authorization) making sure users can only search for documents they're allowed to access.
 
 This section describes how to configure the resources and properties to be indexed and how to pass Elasticsearch specific configurations and mapping in the mu-search configuration file.
 
 #### Indexed resource types and properties
+
 This section describes how to mapping between RDF triples and Elasticsearch documents can be specified in the mounted `/config/config.json` configuration file.
 
 The `config.json` file contains a JSON object with a property `types`. This property contains an array of objects, one per document type that must be searchable.
@@ -320,6 +342,7 @@ The `config.json` file contains a JSON object with a property `types`. This prop
 Note that these types do not map one-on-one with the search indexes in Elasticsearch. For each document type in the list a search index will be created **per** authorization group.
 
 Each type object in the `types` array consists of the following properties:
+
 - **type** : name of the type
 - **on_path** : path on which the search endpoint will be published
 - **rdf_type** : URI of the rdf:Class of the documents to index
@@ -332,6 +355,7 @@ Each type object in the `types` array consists of the following properties:
 **WARNING**: there are two protected fields that should not be used as property keys: `uuid` and `uri`. Both are used internally by the mu-search service to store the uuid and URI of the root resource.
 
 ##### Simple properties
+
 In the simplest scenario, the properties that need to be searchable map one-by-one on a predicate (path) of the resource.
 
 In the example below, a search index per user group will be created for documents and users. The documents index contains resources of type `foaf:Document`s with a `title` and `description`. The users index contains `foaf:Person`s with only `fullname` as searchable property.
@@ -410,11 +434,12 @@ In the example below the documents index contains a property `topics` that maps 
 }
 ```
 
-
 ##### File content property
+
 To make the content of a file searchable, it needs to be indexed as a property in a search index. Basic indexing of PDF, Word etc. files is provided using a local [Apache Tika](https://tika.apache.org/) instance. A default ingest pipeline named `attachment` is created on startup of the mu-search service. Note that this is under development and liable to change.
 
 Defining a property to index the content of a file requires the following keys:
+
 - **via** : mapping of the RDF predicate (path) that relates the resource with the file(s) to index. The file URI the predicate path leads to must have a URI starting with `share://` indicating the location of the file. E.g. `<share://path/to/your/file.pdf>`.
 - **attachment_pipeline** : attachment pipeline to use for indexing the files. Set to `attachment` to use the default ingest pipeline.
 
@@ -446,7 +471,7 @@ For each file retrieved through the `via`-definition, the Tika-processing result
 
 ```javascript
 {
-  content: "Extracted text here"
+  content: 'Extracted text here';
 }
 ```
 
@@ -478,9 +503,11 @@ Attachments processed by Tika are cached in the directory `/cache` (by SHA256 of
 See also "How to specify a file's content as property".
 
 ##### [Experimental] Combining resources of multiple types into one index
+
 It's possible to map several resources of different rdf classes onto one index where that makes sense, e.g. if they share the same properties.
 
 in config.json:
+
 ```
       "rdf_type": [
         "http://data.vlaanderen.be/ns/besluit#Bestuurseenheid",
@@ -493,9 +520,11 @@ in config.json:
 Note that this is different from a composite index, where each type has its own index, as well as being indexed in the composite index. Another difference is that the composite index allows mapping different properties from the sub indexes onto one property in the composite index.
 
 ##### Nested objects
+
 A search document can contain nested objects up to an arbitrary depth. For example for a person you can nest the address object as a property of the person search document.
 
 A nested object is defined by the following properties:
+
 - **via** : mapping of the RDF predicate that relates the resource with the nested object. May also be an inverse URI, or a list of predicate (a property path) as in non-nested properties
 - **rdf_type** : URI of the rdf:Class of the nested object
 - **properties** : mapping of RDF predicates to properties for the nested object
@@ -508,72 +537,75 @@ In the example below the document's creator is nested in the `author` property o
 
 ```json
 {
-    "types" : [
-        {
-            "type" : "document",
-            "on_path" : "documents",
-            "rdf_type" : "http://xmlns.com/foaf/0.1/Document",
-            "properties" : {
-                "title" : "http://purl.org/dc/elements/1.1/title",
-                "description" : "http://purl.org/dc/elements/1.1/description",
-                "author" : {
-                    "via" : "http://purl.org/dc/elements/1.1/creator",
-                    "rdf_type" : "http://xmlns.com/foaf/0.1/Person",
-                    "properties" : {
-                        "fullname" : "http://xmlns.com/foaf/0.1/name",
-                        "project": [
-                            "http://xmlns.com/foaf/0.1/currentProject",
-                            "http://purl.org/dc/elements/1.1/title"
-                        ]
-                    }
-                }
-            },
-            "mappings": {
-              "properties": {
-                "title" : { "type" : "text" },
-                "author.fullname": { "type" : "text" }
-              }
-            }
+  "types": [
+    {
+      "type": "document",
+      "on_path": "documents",
+      "rdf_type": "http://xmlns.com/foaf/0.1/Document",
+      "properties": {
+        "title": "http://purl.org/dc/elements/1.1/title",
+        "description": "http://purl.org/dc/elements/1.1/description",
+        "author": {
+          "via": "http://purl.org/dc/elements/1.1/creator",
+          "rdf_type": "http://xmlns.com/foaf/0.1/Person",
+          "properties": {
+            "fullname": "http://xmlns.com/foaf/0.1/name",
+            "project": [
+              "http://xmlns.com/foaf/0.1/currentProject",
+              "http://purl.org/dc/elements/1.1/title"
+            ]
+          }
         }
-    ]
+      },
+      "mappings": {
+        "properties": {
+          "title": { "type": "text" },
+          "author.fullname": { "type": "text" }
+        }
+      }
+    }
+  ]
 }
 ```
 
-*NOTE*: currently mu-search does not take the rdf_type of the nested object into account. In the above example, any resource linked via the dct:creator predicate would be included in the elasticsearch document.
+_NOTE_: currently mu-search does not take the rdf_type of the nested object into account. In the above example, any resource linked via the dct:creator predicate would be included in the elasticsearch document.
 
 ##### [Experimental] Multilingual properties
+
 Mu-search has experimental support for multilingual values. This can be done by setting the type of a property to `language-string`. Background on this feature can be found in [rfcs/multi-language-search.md](rfcs/multi-language-search.md)
 
 For example:
+
 ```json
 {
-    "types" : [
-        {
-            "type" : "document",
-            "on_path" : "documents",
-            "rdf_type" : "http://xmlns.com/foaf/0.1/Document",
-            "properties" : {
-                "title" : {
-                  "via": "http://purl.org/dc/elements/1.1/title",
-                  "type": "language-string"
-                }
-            },
-            "mappings": {
-              "properties": {
-                "title": {
-                  "properties": {
-                    "default" : { "type" : "text" },
-                    "en": { "type" : "text" }
-                  }
-                }
-              }
+  "types": [
+    {
+      "type": "document",
+      "on_path": "documents",
+      "rdf_type": "http://xmlns.com/foaf/0.1/Document",
+      "properties": {
+        "title": {
+          "via": "http://purl.org/dc/elements/1.1/title",
+          "type": "language-string"
+        }
+      },
+      "mappings": {
+        "properties": {
+          "title": {
+            "properties": {
+              "default": { "type": "text" },
+              "en": { "type": "text" }
             }
-         }
-      ]
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
 When setting a property type to language-string, mu-search will include the language tag of the literal in the search index. In the above example the title field would be expanded to a language container in the document:
+
 ```json
 {
   "title": {
@@ -582,22 +614,91 @@ When setting a property type to language-string, mu-search will include the lang
   }
 }
 ```
+
 Literals without a language string are mapped onto the "default" field.
 
 For searching, make sure to either specify the appropriate field (`filter[title.en]=xyz` or make use of a wildcard: `filter[title.*]=xyz`.
 
 It's often advised to configure language specific analyzers for each language, this can be done in the mappings sections of the configuration.
 
+##### [Experimental] Embedding Vectors
+
+Mu search has experimental support for indexing embeddings as [dense vectors](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/dense-vector).
+
+For example:
+
+```json
+{
+  "types": [
+    {
+      "type": "document",
+      "on_path": "documents",
+      "rdf_type": "http://xmlns.com/foaf/0.1/Document",
+      "properties": {
+        "embedding": {
+          "via": "http://mu.semte.ch/vocabularies/ext/embeddingVector",
+          "type": "dense-vector"
+        }
+      },
+      "mappings": {
+        "properties": {
+          "title": {
+            "embedding": {
+              "type": "dense_vector"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+Embedding vectors can be quite large and triplestores can run into problems when storing such large strings. This is why mu-search expects the embedding vectors to be stored in chunks as a linked list. This list should be stored using the predicate `http://mu.semte.ch/vocabularies/ext/hasChunkedValues`. For easy sorting of these chunks, every part of this list should also refer to its index using the predicate `http://mu.semte.ch/vocabularies/ext/mainListIndex`. Chunk size is not enforced by mu-search, we found that 50 values per chunk is a decent size.
+
+Remember that all embedding vectors should be constructed in the same way and should be the same size. This also goes for the target vector when searching using the `:embedding` search. Embeddings can be generated using the [embedding-service](https://github.com/semantic-ai/embedding-service).
+
+An instance can be explicitly marked as having no embedding vector by providing the value `http://mu.semte.ch/vocabularies/ext/embeddingVector/null`, those values will be ignored. This helps services like the embedding-service to mark instances that can't receive embeddings as processed.
+
+Example data holding embeddings for an instance could be:
+
+```turtle
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ext: <http://mu.semte.ch/vocabularies/ext/>
+
+<https://ris.freiburg.de/oparl/organization/SPD> ext:embeddingVector <http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0> .
+
+<http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0> a ext:EmbeddingVector ;
+  ext:hasChunkedValues <http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/0> .
+
+<http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/0> a rdf:List ;
+  rdf:first "-0.14174555,0.051562164,-0.054384213,-0.014637175,-0.0007808501,-0.016851587,0.019301299,-0.03405146" ;
+  rdf:rest <http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/1> ;
+  ext:mainListIndex 0 .
+
+<http://mu.semte.ch/vocabularies/ext/embeddingVector/2b895974-af17-4fc9-8c82-b33666c743f0/chunk/1> a rdf:List ;
+  rdf:first "0.002858431,0.041939776,0.042765375,-0.007611912,-0.036059007" ;
+  rdf:rest rdf:nil ;
+  ext:mainListIndex 1 .
+```
+
+Elastic does not allow multiple values for a dense_vector property. Because of this, if multiple values are detected for a dense_vector property, they are averaged and normalized when they are added into the elastic instance.
+
+note: not all chunks of this vector will have the same length. Often only the final chunk will be shorter, but in theory chunks can be of varying length.
+
 ##### [Experimental] Composite types
+
 A search index can contain documents of different types. E.g. documents (`foaf:Document`) as well as creative works (`schema:CreativeWork`). Currently, each simple type the composite index is constituted of must be defined separately in the index configuration as well.
 
 A definition of a composite type index consists of the following properties:
+
 - **type** : name of the composite type
 - **composite_types** : list of simple type names that constitute the index
 - **on_path** : path on which the search endpoint will be published
 - **properties** : mapping of RDF predicates to document properties for each simple type
 
 In contrast to the `properties` of a simple index, the `properties` of a composite index is an array. Each entry in the array is an object with the folliwng properties:
+
 - **name** : name of property of the search document
 - **mappings** : mapping to the simple type property per simple type. If the mapping for a simple type is absent, the same property name as the composite document is assumed.
 
@@ -648,7 +749,9 @@ The example below contains 2 simple indexes for documents and creative works, an
     ]
 }
 ```
+
 #### Using Prefixes
+
 To make the configuration more concise and maintainable, you can define prefixes for commonly used URI namespaces. Prefixes are defined at the root level of the configuration using the `prefixes` property:
 
 ```json
@@ -674,6 +777,7 @@ To make the configuration more concise and maintainable, you can define prefixes
 ```
 
 #### Elasticsearch settings
+
 Elasticsearch provides a lot of [index configuration settings](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules.html) for analysis, logging, etc. Mu-search allows to provide this configuration for the whole domain and/or to be overridden (currently not merged!) on a per-type basis.
 
 To specify Elasticsearch settings for all indexes, use `default_settings` next to the `types` specification:
@@ -733,9 +837,11 @@ To specify Elasticsearch settings for a single type, use `settings` on the type 
 ```
 
 #### Elasticsearch mappings
+
 Elasticsearch provides the option to configure [a mapping per index](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html) to specify how the properties of a document are stored and indexed. E.g. the type of the property value (string, date, boolean, ...), text-analysis to be applied on the value, etc.
 
 In the mu-search configuration the Elasticsearch mappings can be passed via the `mappings` property per index type specification.
+
 ```javascript
 {
   "types": [
@@ -758,17 +864,21 @@ In the mu-search configuration the Elasticsearch mappings can be passed via the 
 The content of the `mappings` object is not elaborated here but can be found in the official [Elasticsearch documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html). All settings provided in `mappings.properties` in the Elasticsearch configuration can be used verbatim in the `es_settings` of mu-search.
 
 ### Index options
+
 In the base scenario, indexes are created on an as-needed basis, whenever a new search profile (authorization rights and data type) is received. The first search query for a new search profile may therefore take more time to complete, because the index still needs to be built. Indexes can be manually re-indexed by triggering the `POST /:type/index` endpoint (see [below](#api)).
 
 #### Index metadata in the triple store
+
 When an index is created, it is registered in the triplestore in the `<http://mu.semte.ch/authorization>` graph.
 
 [To be completed... describe used model in the triplestore]
 
 #### Persistent indexes
+
 By default, on startup or restart of mu-search, all existing indexes are deleted, since data might have changed in the meantime. However, for sure in production environments, regenerating indexes might be a costly operation.
 
 Persistence of indexes can be enabled via the `persist_indexes` flag at the root of the mu-search configuration file:
+
 ```javascript
 {
   "persist_indexes": true,
@@ -783,6 +893,7 @@ Possible values are `true` and `false`. Defaults to `false`.
 Note that if set to `true`, the indexes may be out-of-date if data has changed in the application while mu-search was down.
 
 #### Eager indexes
+
 Configure indexes to be pre-built when the application starts. For each user search profile for which the indexes needs to be prepared, the authorization group names and their corresponding variables needs to be passed.
 
 ```javascript
@@ -810,6 +921,7 @@ Configure indexes to be pre-built when the application starts. For each user sea
 Note that if you want to prepare indexes for all user profiles in your application, you will have to provide an entry in the `eager_indexing_groups` list for **each** possible variable value. For example, if you have an authorization group defining a user can only access the data of his company (hence, the company name is a variable of the authorization group), you will need to define an eager index group for each of the possible companies in your application.
 
 #### Additive index access rights
+
 Additive indexes are indexes that may be combined to respond to a search query in order to fully match the user's authorization groups. If a user is granted access to multiple groups, indexes will be combined to calculate the response. Therefore, it's strongly adviced the indexes contain non-overlapping data. Otherwise the result set may contain duplicates (see also: [removing duplicate results](https://github.com/mu-semtech/mu-search?tab=readme-ov-file#removing-duplicate-results)).
 
 Only indexes that are defined in the `eager_indexing_groups` will be used in combinations. If no combination can be found that fully matches the user's authorization group a single index will be created for the request's authorization groups.
@@ -821,23 +933,28 @@ Assume your application contains a company-specific user group in the authorizat
 A typical group to be specified as a single `eager_indexing_group` is `{ "variables": [], "name": "clean" }`. The index will not contain any data, but will be used in the combination to fully match the user's allowed groups.
 
 #### [Experimental] Ignoring allowed groups
+
 In some cases you may search to ignore certain allowed groups when looking for matching indexes. Typically because they will not relate to data that has to be indexed and you want to avoid having many empty indexes. In this case you will have to provide an entry in the `ignored_allowed_groups` list for each group, currently this means including each possible variable value.
 For example the clean group can be added to `ignored_allowed_groups` by adding `{ "variables": [], "name": "clean" }` to the list.
 
 #### [Experimental] Dynamic allowed group variables
-In some cases you may encounter variables which are not known up front.  The `"variables"` array accepts a `"*"` to indicate a wildcard for an attribute.  This is currently supported in `ignored_allowed_groups`.  In `eager_indexing_groups` this is supported, but only if the `eager_indexing_group` array contains a single group.  Within `eager_indexing_groups` this allows us to create a dynamic index for an access right whilst still indicating this index does not impact other indexes.  For example, you may want to index the user's message history (`[{ "name": "user", "variables": ["*"] }]` which does not impact the index of the code-lists in public `[{ "name": "public", "variables": [] }].` An example for ignored groups may be to ignore all of the anonymous sessions' information which could be done as: `ignored_allowed_groups": [ { "name": "anonymous-session", "variables": ["*"] } ]`.
+
+In some cases you may encounter variables which are not known up front. The `"variables"` array accepts a `"*"` to indicate a wildcard for an attribute. This is currently supported in `ignored_allowed_groups`. In `eager_indexing_groups` this is supported, but only if the `eager_indexing_group` array contains a single group. Within `eager_indexing_groups` this allows us to create a dynamic index for an access right whilst still indicating this index does not impact other indexes. For example, you may want to index the user's message history (`[{ "name": "user", "variables": ["*"] }]` which does not impact the index of the code-lists in public `[{ "name": "public", "variables": [] }].` An example for ignored groups may be to ignore all of the anonymous sessions' information which could be done as: `ignored_allowed_groups": [ { "name": "anonymous-session", "variables": ["*"] } ]`.
 
 ### Delta integration
+
 Mu-search integrates with the delta's generated by [mu-authorization](https://github.com/mu-semtech/mu-authorization) and dispatched by the [delta-notifier](https://github.com/mu-semtech/delta-notifier).
 
 Follow the "How to integrate mu-seach with delta's to update search indexes" guide to setup delta notification handling for mu-search. Deltas are expected in the [v0.0.1 format](https://github.com/mu-semtech/delta-notifier/#v001) of the delta notifier.
 
 #### Full index invalidation
+
 By default, when a delta notification is received by mu-search, all indexes containing data related to the changes are invalidated. The index will be rebuilt the next time it is searched.
 
 Note that a change on one resource may trigger the invalidation of multiple indexes depending on the authorization groups.
 
 #### Partial index updates
+
 Alternate to full index invalidation, indexes can be dynamically updated on a per-document basis according to received deltas. When a delta is received, the document corresponding to the delta is updated (or deleted) in every index corresponding to the delta. This update is not a blocking operation: an update will not lock the index, so that a simultaneously received search request might be run on the un-updated index.
 
 Note that a change on one resource may trigger the update of multiple indexes depending on the authorization groups.
@@ -854,6 +971,7 @@ Partial index updates are enabled by setting the `automatic_index_updates` flag 
 ```
 
 #### Update batching and queueing
+
 When a delta notification is handled, the update to be performed is pushed on the update queue. By default the queue is processed every minute. This timeout can be configured via `update_wait_interval_minutes` in the root of the search configuration:
 
 ```javascript
@@ -869,16 +987,19 @@ When a delta notification is handled, the update to be performed is pushed on th
 Increasing the interval has the advantage that updates on the same document will be applied only once, but has the downside that search results will not be up-to-date for a longer time. The optimal value depends on the application (number of updates, indexed properties, user expectations, etc.)
 
 ### API
+
 This section describes the REST API provided by mu-search.
 
 In order to take access rights into account, each request requires the `MU_AUTH_ALLOWED_GROUPS` and `MU_AUTH_USED_GROUPS` headers to be present.
 
 #### GET `/:type/search`
+
 Endpoint to search the given `:type` index. The request format is JSON-API compliant and intended to match the request format of [mu-cl-resources](https://github.com/mu-semtech/mu-cl-resources). Search filters are passed using query params.
 
 A subset of the [Elasticsearch Query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html) is supported, via the `filter`, `page`, and `sort` query parameters. More complex queries should be sent via `POST /:type/search` endpoint.
 
 ##### Examples
+
 To search for `document`s on all fields:
 
 ```
@@ -904,17 +1025,21 @@ GET /documents/search?filter[:uri:]=http://data.semte.ch/documents/c020b82b-61f6
 ```
 
 ##### Searching in a file property
+
 To search for a field indexing a file, a specific property of the resulting attachment object must be specified as filter key using the `.`-notation.
 
 Currently the following properties are available on an attachment object:
+
 - `content` : text content of the file
 
 For example, for a property `attachment` indexing a file, searching the content of the file is done using the following filter query:
+
 ```
 GET /documents/search?filter\[attachment.content\]=Adobe"
 ```
 
 ##### Supported search methods
+
 More advanced search options, such as term, range and fuzzy searches, are supported via flags. Flags are expressed in the filter key between `:` before the field name(s). E.g. the `term` search flag looks as follows:
 
 ```
@@ -924,10 +1049,12 @@ GET /documents/search?filter[:term:tag]=fish
 The following sections list the flags that are currently implemented:
 
 ###### Identifier queries
+
 - `:id:` Filter documents by their uuid. Multiple values should be comma-seperated, such as `filter[:id:]=c9e0fe90-3785-4221-9c4b-bda70bd8d83b,e8cbc03a-97e0-4b97-931b-97caa720db14`
 - `:uri:` Filter documents by their URI. Multiple values should be comma-seperated.
 
 ###### Term-level queries
+
 - `:term:` : [Term query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-term-query.html)
 - `:terms:` : [Terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-terms-query.html), terms should be comma-separated, such as: `filter[:terms:tag]=fish,seafood`
 - `:prefix:` : [Prefix query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-prefix-query.html)
@@ -940,6 +1067,7 @@ The following sections list the flags that are currently implemented:
 - `:has-no:`: Filter on documents not having a value for the supplied field. To enable the filter, it's value must be `t`. E.g. `filter[:has-no:translation]=t`.
 
 ###### Full text queries
+
 - `:phrase:` : [Match phrase query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-query-phrase.html)
 - `:phrase_prefix:` : [Match phrase prefix query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-query-phrase-prefix.html)
 - `:query:` : [Query string query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html)
@@ -947,10 +1075,16 @@ The following sections list the flags that are currently implemented:
 - `:common:` [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options). The common terms query was deprecated and removed from elasticsearch. It is replaced by its recommended replacement, the [match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query)
 - `:match` [Match query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-match-query). The flag takes additional options `cutoff_frequency` and `minimum_should_match` appended with commas such as `:common,{cutoff_frequence},{minimum_should_match}:{field}`. The `cutoff_frequency` can also be set application-wide in [the configuration file](#configuration-options).
 
+###### Vector-based queries
+
+- `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense-vector` field. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. Optionally, you can prefix the vector by integer values for `k` (the number of closest matches, default 3) and `num_candidates` (the number of rough close matches to consider, default 20). An example search would be `filter[:embedding:description-vector]=2:10:0.1,-0.3,0.8`
+
 ###### Custom queries
+
 - `:fuzzy_phrase:` : A fuzzy phrase query based on [span_near](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-near-query.html) and [span_multi](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-multi-term-query.html). See also [this](https://stackoverflow.com/questions/38816955/elasticsearch-fuzzy-phrases) Stack Overflow issue or [the code](./framework/elastic_query_builder.rb).
 
 Currently searching on multiple fields is only supported for the following flag:
+
 - `:phrase:`
 - `:phrase_prefix:`
 - `:fuzzy:`
@@ -970,6 +1104,7 @@ GET /documents/search?filter[:sqs:name]=Barney&[:has:address]=t
 ```
 
 ##### Sorting
+
 Sorting is specified using the `sort` query parameter, providing the field to sort on and the sort direction (`asc` or `desc`). Multiple sort query parameters may be provided.
 
 ```
@@ -1011,6 +1146,7 @@ GET /documents/search?filter[:sqs:]=fish&highlight[:fields:]=*
 ```
 
 ##### Removing duplicate results
+
 When querying multiple indexes (with [additive indexes](#additive-indexes)), identical documents may be returned multiple times. Unique results can be assured using [Elasticsearch's search result collapsing](https://www.elastic.co/guide/en/elasticsearch/reference/7.9/collapse-search-results.html) on the `uuid` field. The search result collapsing can be toggled using the `collapse_uuids` query parameter:
 
 ```
@@ -1020,11 +1156,13 @@ GET /documents/search?filter[name]=fish&collapse_uuids=t
 However, note that `count` property in the response still designates total non-unique results.
 
 #### [Experimental] POST `/:type/search`
+
 Accepts a raw [Elasticsearch Query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html) as request body to search the given `:type` index.
 
 This endpoint is mainly intended for testing purposes and sending more complex queries than can be expressed with the `GET /:type/search` endpoint.
 
 For security reasons, the endpoint is disabled by default. It can be enabled by setting the `enable_raw_dsl_endpoint` flag in the root of the configuration file:
+
 ```javascript
 {
   "enable_raw_dsl_endpoint": true,
@@ -1034,15 +1172,34 @@ For security reasons, the endpoint is disabled by default. It can be enabled by 
 }
 ```
 
+#### [Experimental] POST `/:type/large-search`
+
+Some queries require so many parameters or parameters of such a large size, that they don't fit in the max length of a url. This can be the case for embedding-based searches, for instance, as you need to provide the full target vector to search for. To get around this limitation, the `POST /:type/large-search` endpoint can be used.
+
+For instance, embedding vectors can be quite large and require this endpoint with body:
+
+```json
+{
+  "filter": {
+    ":embedding:description-vector": "<num results>:<num approx close considered>:<your vector as comma separated string>"
+  }
+}
+```
+
+This endpoint behaves in the same way as the `GET /:type/search` endpoint, but all the query params are instead sent in the JSON body of the request.
+
 #### Admin endpoints
+
 The admin endpoints can be used to manage the indexes. These endpoints should not be publicly exposed in your application, since they allow 'root' access when no authorization headers are specified on the request.
 
 ##### POST `/:type/index`
+
 Updates the index(es) for the given `:type`. If the request is sent with authorization headers, only the authorized indexes are updated. Otherwise, all indexes for the type are updated.
 
 Type `_all` will update all indexes.
 
 ##### POST `/:type/invalidate`
+
 Invalidates the index(es) for the given `:type`. If the request is sent with authorization headers, only the authorized indexes are invalidated. Otherwise, all indexes for the type are invalidated.
 
 Type `_all` will invalidate all indexes.
@@ -1052,6 +1209,7 @@ An invalidated index will be updated before executing a new search query on it.
 Note that the search index is only marked as invalid in memory. I.e the index is not removed from Elasticsearch nor the triplestore. Hence, on restart of mu-search, the index will be considered valid again.
 
 ##### DELETE `/:type`
+
 Deletes the index(es) for the given `:type` in Elasticsearch and the triplestore. If the request is sent with authorization headers, only the authorized indexes are deleted. Otherwise, all indexes for the type are deleted.
 
 Type `_all` will delete all indexes.
@@ -1059,60 +1217,67 @@ Type `_all` will delete all indexes.
 A deleted index will be recreated before executing a new search query on it.
 
 ##### POST `/update`
+
 Processes an update of the delta-notifier. See [delta integration](#delta-integration).
 
 Currently only delta format v.0.0.1 is supported.
 
 ### Configuration options
+
 This section gives an overview of all configurable options in the search configuration file `config.json`. Most options are explained in more depth in other sections.
 
-- (*) **persist_indexes** : flag to enable the persistence of search indexes on startup. Defaults to `false`. See [persist indexes](#persist-indexes).
-- (*) **automatic_index_updates** : flag to apply automatic index updates instead of invalidating indexes on receiving deltas. Defaults to `false`. See [delta integration](#delta-integration).
+- (\*) **persist_indexes** : flag to enable the persistence of search indexes on startup. Defaults to `false`. See [persist indexes](#persist-indexes).
+- (\*) **automatic_index_updates** : flag to apply automatic index updates instead of invalidating indexes on receiving deltas. Defaults to `false`. See [delta integration](#delta-integration).
 - **eager_indexing_groups** : list of user search profiles (list of authorization groups) to be indexed at startup. Defaults to `[]`. See [eager indexes](#eager-indexes).
-- (*) **batch_size** : number of documents loaded from the RDF store and indexed together in a single batch. Defaults to 100.
-- (*) **max_batches** : maximum number of batches to index. May result in an incomplete index and should therefore only be used during development. Defaults to 1.
-- (*) **number_of_threads** : number of threads to use during indexing. Defaults to 1.
-- (*) **connection_pool_size** : number of connections in the SPARQL/Elasticsearch/Tika connection pools. Defaults to 20. Typically increased up to 200 on systems with heavy load.
-- (*) **update_wait_interval_minutes** : number of minutes to wait before applying an update. Allows to prevent duplicate updates of the same documents. Defaults to 1.
-- (*) **common_terms_cutoff_frequency** : [REMOVED] default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). This parameter was removed by elastic search and is now ignored [supported search methods](#supported-search-methods).
-- (*) **enable_raw_dsl_endpoint** : flag to enable the [raw Elasticsearch DSL endpoint](#api). This endpoint is disabled by default for security reasons.
-- (*) **attachments_path_base** : path inside the Docker container where files for the attachment pipeline are mounted. Defaults to `/data`.
+- (\*) **batch_size** : number of documents loaded from the RDF store and indexed together in a single batch. Defaults to 100.
+- (\*) **max_batches** : maximum number of batches to index. May result in an incomplete index and should therefore only be used during development. Defaults to 1.
+- (\*) **number_of_threads** : number of threads to use during indexing. Defaults to 1.
+- (\*) **connection_pool_size** : number of connections in the SPARQL/Elasticsearch/Tika connection pools. Defaults to 20. Typically increased up to 200 on systems with heavy load.
+- (\*) **update_wait_interval_minutes** : number of minutes to wait before applying an update. Allows to prevent duplicate updates of the same documents. Defaults to 1.
+- (\*) **common_terms_cutoff_frequency** : [REMOVED] default cutoff frequency for a [Common terms query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-common-terms-query.html). This parameter was removed by elastic search and is now ignored [supported search methods](#supported-search-methods).
+- (\*) **enable_raw_dsl_endpoint** : flag to enable the [raw Elasticsearch DSL endpoint](#api). This endpoint is disabled by default for security reasons.
+- (\*) **attachments_path_base** : path inside the Docker container where files for the attachment pipeline are mounted. Defaults to `/data`.
 
-All options prefixed with (*) can also be configured using an UPPERCASED variant as Docker environment variables on the mu-search container. E.g. the `batch_size` option can be set via the environment variable `BATCH_SIZE`. Environment variables take precedence over settings configured in `config.json`.
+All options prefixed with (\*) can also be configured using an UPPERCASED variant as Docker environment variables on the mu-search container. E.g. the `batch_size` option can be set via the environment variable `BATCH_SIZE`. Environment variables take precedence over settings configured in `config.json`.
 
 In development mode (setting the environment variable `RACK_ENV` to `development`), the application will listen for changes in `config.json`. Any change will trigger a complete reload of the full application, including deleting existing indexes, and building any default indexes specified in eager indexing. This behaviour overrules the `persist_indexes` flag.
 
 ### Logging
+
 Log messages are logged in a specific scope. A different log level can be configured per scope via environment variables like `LOG_SCOPE_{scopeName}>`.
 
 E.g.
+
 ```yml
 search:
   environment:
-     LOG_SCOPE_TIKA: "warn"
-     LOG_SCOPE_DELTA: "debug"
+    LOG_SCOPE_TIKA: 'warn'
+    LOG_SCOPE_DELTA: 'debug'
 ```
 
 The following scopes are known:
-* **SETUP**: system setup and initialization (default: `info`)
-* **INDEX_MGMT**: creation, updates and deletion of indexes (default: `info`)
-* **INDEXING**: indexing of documents (default: `info`)
-* **SEARCH**: execution of search queries (default: `warn`)
-* **TIKA**: extraction and indexing of file content using Tika (default: `warn`)
-* **ELASTICSEARCH**: all communication with Elasticsearch (default: `error`)
-* **SPARQL**: all communication with the database (default: `warn`)
-* **AUTHORIZATION**: incoming access rights on requests (default: `warn`)
-* **DELTA**: handling of incoming delta's (default: `info`)
-* **UPDATE_HANDLER**: processing of the updates triggered by delta's (default: `info`)
+
+- **SETUP**: system setup and initialization (default: `info`)
+- **INDEX_MGMT**: creation, updates and deletion of indexes (default: `info`)
+- **INDEXING**: indexing of documents (default: `info`)
+- **SEARCH**: execution of search queries (default: `warn`)
+- **TIKA**: extraction and indexing of file content using Tika (default: `warn`)
+- **ELASTICSEARCH**: all communication with Elasticsearch (default: `error`)
+- **SPARQL**: all communication with the database (default: `warn`)
+- **AUTHORIZATION**: incoming access rights on requests (default: `warn`)
+- **DELTA**: handling of incoming delta's (default: `info`)
+- **UPDATE_HANDLER**: processing of the updates triggered by delta's (default: `info`)
 
 The same log levels as the [mu-ruby-template](https://github.com/mu-semtech/mu-ruby-template) are available:
-* `debug`
-* `info`
-* `warn`
-* `error`
-* `fatal`
+
+- `debug`
+- `info`
+- `warn`
+- `error`
+- `fatal`
 
 ### Environment variables
+
 This section gives an overview of all options that are configurable via environment variables. The options that can be configured in the `config.json` file as well are not repeated here. This list contains options that can only be configured via environment variables.
 
 - **MAX_REQUEST_URI_LENGTH** : maximum length of an incoming request URL. Defaults to 10240.
@@ -1122,17 +1287,17 @@ This section gives an overview of all options that are configurable via environm
 - **MAX_YAML_SIZE**: Set the code point limit for the psych yaml parser (in bytes), affects the maximum queue size that can be stored (and read). defaults to 20_000_000 bytes.
 
 ## Discussions
+
 ### Why a custom Elasticsearch docker image?
+
 The [mu-semtech/search-elastic-backend](https://github.com/mu-semtech/mu-search-elastic-backend) is a custom Docker image based on the official Elasticsearch image. Providing a custom image allows better control on the version of Elasticsearch, currently v7.2.0, used in combination with the mu-search service.
 
 The custom image also makes sure the required Elasticsearch plugins, such as the ingest-attachments plugin, are already pre-installed making the integration of mu-search in your stack a lot easier.
 
 ### Authorization groups vs indexes
+
 Access rights are determined according to the contents of two headers, `MU_AUTH_ALLOWED_GROUPS` and `MU_AUTH_USED_GROUPS`.
 
 Currently, a separate Elasticsearch index is created for each combination of document type and authorization group.
 
 [To be completed...]
-
-
-

@@ -111,7 +111,8 @@ SPARQL
                   .query(query)
                   .group_by { |triple| triple.s.to_s }
 
-      key_value_tuples = property_query_info.map do |info|
+      key_value_tuples = []
+      property_query_info.each do |info|
         matching_triples = results[info[:construct_uri]] || []
         matching_values = matching_triples.map { |triple| triple.o }
         definition = info[:property_definition]
@@ -124,11 +125,13 @@ SPARQL
           index_value = build_file_field(matching_values)
         elsif definition.type == "nested"
           index_value = build_nested_object(matching_values, definition.sub_properties)
+        elsif definition.type == "dense-vector"
+          index_value = build_vector_dense_property(matching_values)
         else
           raise "Unsupported property type #{definition.type} for property #{definition.name}. Property will not be handled by the document builder"
         end
 
-        [definition.name, denumerate(index_value)]
+        key_value_tuples << [definition.name, denumerate(index_value)]
       end
 
       Hash[key_value_tuples]
@@ -159,6 +162,74 @@ SPARQL
           value.to_s
         end
       end
+    end
+
+    def build_vector_dense_property( values )
+      if values && values.length > 1
+        @logger.debug("EMBED") { "multiple embeddings found for #{values[0]}, elastic doesn't allow this. averaging the values for storage"}
+      end
+      vector_values = build_simple_property( values ).collect do |value|
+
+        @logger.debug("EMBED") { "building embedding for #{value}" }
+        # value is the uri of an embedding vector whose value is contained in a linked list of chunks
+        # it can also be the special uri http://mu.semte.ch/vocabularies/ext/embeddingVector/null that makes it
+        # explicit that no embedding could be created
+        if not value or value == "http://mu.semte.ch/vocabularies/ext/embeddingVector/null"
+          nil
+        else
+          query = <<SPARQL
+          PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+          PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+          SELECT ?value ?index
+          WHERE {
+          {
+            <#{value}> ext:hasChunkedValues / rdf:rest* ?node .
+            ?node rdf:first ?value .
+            ?node ext:mainListIndex ?index .
+          }
+        } ORDER BY ?index
+SPARQL
+
+          chunks_result = @sparql_client.query(query)
+
+          @logger.debug("EMBED") { "resulting chunks #{chunks_result}" }
+
+          embedding_floats = []
+          chunks_result.each do |result|
+            chunk_string = result['value'].to_s
+
+            chunk_string.split(",").each do |f|
+              embedding_floats.append(f.to_f)
+            end
+          end
+          embedding_floats
+        end
+      end
+      average_vectors(vector_values)
+    end
+
+    # elastic only allows a single value per dense_vector property.
+    # We're too late to do anything about multiple values here, best we can do is average the values we have
+    def average_vectors(vectors)
+      non_nil_vectors = vectors.compact
+
+      return [] if non_nil_vectors.empty?
+
+      return non_nil_vectors[0] if non_nil_vectors.length == 1
+
+      average = non_nil_vectors.first.each_index.map do |i|
+        values_at_index = non_nil_vectors.map { |v| v[i] }
+        sum_at_index = values_at_index.sum
+        sum_at_index.to_f / non_nil_vectors.size.to_f
+      end
+      normalize_vector(average)
+    end
+
+    # need to normlize the vector too for proper use of cosine similarity (used in elastic)
+    def normalize_vector(vector)
+      magnitude = Math.sqrt(vector.sum { |x| x ** 2 })
+      vector.map { |x| x.to_f / magnitude }
     end
 
     # Get the array of values to index as language strings for a given SPARQL result set
