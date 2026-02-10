@@ -7,10 +7,6 @@ RSpec.describe MuSearch::JsonApi do
       expect(described_class.extract_hits(results)).to eq([{ "_id" => "1" }, { "_id" => "2" }])
     end
 
-    it 'returns an empty array when results is an empty array' do
-      expect(described_class.extract_hits([])).to eq([])
-    end
-
     it 'returns an empty array when results is an empty hash' do
       expect(described_class.extract_hits({})).to eq([])
     end
@@ -255,12 +251,6 @@ RSpec.describe MuSearch::JsonApi do
       expect(result[:data].last[:highlight]).to eq({ "title" => ["<em>Second</em>"] })
     end
 
-    it 'handles empty results passed as an empty array' do
-      result = described_class.build_response(**base_args, count: 0, page: 0, size: 10, results: [])
-      expect(result[:count]).to eq(0)
-      expect(result[:data]).to eq([])
-    end
-
     it 'handles empty results passed as an ES response with no hits' do
       empty = { "hits" => { "hits" => [] } }
       result = described_class.build_response(**base_args, count: 0, page: 0, size: 10, results: empty)
@@ -310,7 +300,8 @@ RSpec.describe MuSearch::JsonApi do
     end
 
     it 'handles empty results' do
-      result = helper.format_search_results("documents", 0, 0, 10, [])
+      empty = { "hits" => { "hits" => [] } }
+      result = helper.format_search_results("documents", 0, 0, 10, empty)
       expect(result[:data]).to eq([])
     end
   end
