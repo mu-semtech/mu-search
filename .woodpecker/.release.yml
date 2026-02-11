@@ -1,4 +1,11 @@
 steps:
+  verify-version:
+    image: ruby:3.2-slim
+    commands:
+      - TAG_VERSION="${CI_COMMIT_TAG##v}"
+      - CODE_VERSION=$(ruby -e "require_relative 'lib/mu_search/version'; puts MuSearch::VERSION")
+      - echo "Tag version $TAG_VERSION, code version $CODE_VERSION"
+      - test "$TAG_VERSION" = "$CODE_VERSION" || (echo "ERROR - Version mismatch! Update lib/mu_search/version.rb before releasing." && exit 1)
   build-and-push-release:
     image: woodpeckerci/plugin-docker-buildx
     settings:

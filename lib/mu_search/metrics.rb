@@ -116,7 +116,7 @@ module MuSearch
           docstring: 'Mu-search service info',
           labels: [:version]
         )
-        @info.set(1, labels: { version: musearch_version })
+        @info.set(1, labels: { version: MuSearch::VERSION })
 
         @es_stats_cache = nil
         @es_stats_cache_time = nil
@@ -160,10 +160,6 @@ module MuSearch
       end
 
       private
-
-      def musearch_version
-        ENV.fetch('MU_SEARCH_VERSION', 'unknown')
-      end
 
       def normalize_endpoint(path)
         # Preserve known static endpoints

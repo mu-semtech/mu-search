@@ -17,6 +17,7 @@ require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
 require_relative 'lib/mu_search/json_api.rb'
 require_relative 'lib/mu_search/query_validator.rb'
+require_relative 'lib/mu_search/version.rb'
 require_relative 'lib/mu_search/metrics.rb'
 
 ##
@@ -354,7 +355,7 @@ end
 # TODO Make this more descriptive - status of all indexes?
 get "/health" do
   settings.index_manager.indexes.inspect
-  { status: "up" }.to_json
+  { status: "up", version: MuSearch::VERSION }.to_json
 end
 
 get "/indexes" do
