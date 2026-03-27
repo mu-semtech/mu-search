@@ -1285,6 +1285,7 @@ This section gives an overview of all options that are configurable via environm
 - **MAXIMUM_FILE_SIZE** : maximum size in bytes of files to extract and index content from. Defaults to 209715200.
 - **ELASTIC_READ_TIMEOUT** : timeout in seconds of requests to Elasticsearch. Defaults to 180.
 - **MAX_YAML_SIZE**: Set the code point limit for the psych yaml parser (in bytes), affects the maximum queue size that can be stored (and read). defaults to 20_000_000 bytes.
+- **INCLUDE_SCORE**: if true, has mu-search return the elasticsearch \_score value for hits as a score property on the same level as `attributes` and `highlights`. This can be useful e.g. in case you're using mu-search in a RAG setting and want to only use documents with a high enough similarity score. Careful, the elastic search score may not always mean what you think it does and may just be relative. Defaults to false.
 
 ## Discussions
 
