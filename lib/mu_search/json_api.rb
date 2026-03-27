@@ -81,12 +81,16 @@ module MuSearch
     def format_hits(hits, type)
       hits.map do |hit|
         uuid = hit.dig("_source", "uuid") || hit["_id"]
-        {
+        result = {
           type: type,
           id: uuid,
           attributes: hit["_source"].merge({ uri: hit["_id"] }),
           highlight: hit["highlight"]
         }
+        if ["true", "yes", "t"].include? (ENV["INCLUDE_SCORE"] or "false").downcase
+          result[:score] = hit["_score"]
+        end
+        result
       end
     end
 
