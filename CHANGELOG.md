@@ -4,6 +4,7 @@
 ## v0.12.0
 **Features**
 - Support for Elasticsearch 9.2.0 (via elasticsearch gem 9.x)
+- Support for dense vector search (vectors computed externally)
 - Backward compatible with Elasticsearch 7.x backends
 - Support for URI prefixes in search configuration (`prefixes` config option)
 - Batched VALUES pipeline for delta handling — groups triples by query shape and executes batched SPARQL queries instead of per-triple queries
