@@ -6,8 +6,7 @@ module MuSearch
   ##
   # This class is responsible for building JSON documents from an IndexDefinition
   class DocumentBuilder
-    def initialize(tika:, sparql_client:, attachment_path_base:, logger:)
-      @tika = tika
+    def initialize(sparql_client:, attachment_path_base:, logger:)
       @sparql_client = sparql_client # authorized client from connection pool
       @attachment_path_base = attachment_path_base
       @cache_path_base = "/cache/"
@@ -30,10 +29,7 @@ module MuSearch
     #   - uri: URI of the resource to fetch
     #   - properties: Array of raw properties as configured in the search config
     def fetch_document_to_index(uri: nil, properties: nil)
-      property_definitions = properties.map do |key, prop_config|
-        PropertyDefinition.from_json_config(key, prop_config)
-      end
-      construct_document_to_index(uri: uri, definitions: property_definitions)
+      construct_document_to_index(uri: uri, definitions: properties)
     end
 
     ##
@@ -177,7 +173,7 @@ SPARQL
       language_map = Hash.new {|hash, key| hash[key] = [] }
       literals.collect do |literal|
         value = literal.to_s
-        if literal.language?
+        if literal.language? && !literal.language.to_s.empty?
           language = literal.language.to_s
           language_map[language] << value
         else
@@ -242,19 +238,21 @@ SPARQL
             file.read
           end
         else
-          text_content = @tika.extract_text file_path, blob
-          if text_content.nil?
-            @logger.info("TIKA") { "Received empty result from Tika for file #{file_path}. File content will not be indexed." }
-            # write emtpy file to make cache hit on next run
-            File.open(cached_file_path, "w") {}
-          else
-            @logger.debug("TIKA") { "Extracting text from #{file_path} and storing result in #{cached_file_path}" }
-            File.open(cached_file_path, "w") do |file|
-              file.puts text_content.force_encoding("utf-8").unicode_normalize
+          MuSearch::Tika::ConnectionPool.with_client do |tika|
+            text_content = tika.extract_text file_path, blob
+            if text_content.nil?
+              @logger.info("TIKA") { "Received empty result from Tika for file #{file_path}. File content will not be indexed." }
+              # write emtpy file to make cache hit on next run
+              File.open(cached_file_path, "w") {}
+            else
+              @logger.debug("TIKA") { "Extracting text from #{file_path} and storing result in #{cached_file_path}" }
+              File.open(cached_file_path, "w") do |file|
+                file.puts text_content.force_encoding("utf-8").unicode_normalize
+              end
             end
+            text_content
           end
         end
-        text_content
       rescue Errno::ENOENT, IOError => e
         @logger.warn("TIKA") { "Error reading file at #{file_path} to extract content. File content will not be indexed." }
         @logger.warn("TIKA") { e.full_message }

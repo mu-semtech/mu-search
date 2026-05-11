@@ -1,3 +1,5 @@
+require_relative './prefix_utils'
+
 module MuSearch
   class PropertyDefinition
     PROPERTY_TYPES = ["simple", "nested", "attachment", "language-string"]
@@ -16,7 +18,7 @@ module MuSearch
       end
     end
 
-    def self.from_json_config(name, config)
+    def self.from_json_config(name, config, prefixes = {})
       type = "simple"
       rdf_type = sub_properties = pipeline = nil
       if config.is_a?(Hash)
@@ -26,7 +28,7 @@ module MuSearch
         elsif config.key?("properties")
           type = "nested"
           sub_properties = config["properties"].map do |subname, subconfig|
-            from_json_config(subname, subconfig)
+            from_json_config(subname, subconfig, prefixes)
           end
           rdf_type = config["rdf_type"]
         elsif config.key?("type") && config["type"] == "language-string"
@@ -38,6 +40,10 @@ module MuSearch
         path = [config]
       end
 
+      path = path.map do |p|
+        PrefixUtils.expand_prefix(p, prefixes)
+      end
+
       PropertyDefinition.new(
         name: name,
         type: type,
@@ -46,6 +52,5 @@ module MuSearch
         sub_properties: sub_properties,
       )
     end
-
   end
 end

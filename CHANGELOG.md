@@ -22,8 +22,41 @@ services:
       - ./data/tika/cache:/cache # in case you index files
 ```
 
+
+## v0.12.0
 **Features**
-- added ignored groups: groups that should not be taken into account when searching
+- Support for Elasticsearch 9.2.0 (via elasticsearch gem 9.x)
+- Backward compatible with Elasticsearch 7.x backends
+- Support for URI prefixes in search configuration (`prefixes` config option)
+- Batched VALUES pipeline for delta handling — groups triples by query shape and executes batched SPARQL queries instead of per-triple queries
+- Configurable `delta_batch_size` for controlling the number of triples per VALUES query batch (default: 100)
+- Raw DSL endpoint now validates that request body does not contain an `index` property (prevents cross-index data access)
+
+**Fixes**
+- Fixed empty language strings being sent to Elasticsearch (rejects empty string language tags)
+- Fixed undefined variable in log statement (#104)
+- Fixed bug on non-persisted (dynamic) indexes
+- Fixed document updates by replacing documents on upsert instead of update
+- Fixed subject check in delta handler
+
+**Changes**
+- Upgraded elasticsearch gem from 7.17 to 9.2
+- Error namespace changed from `Elasticsearch::Transport` to `Elastic::Transport`
+- Renamed internal class `Elastic` to `ElasticWrapper` to avoid naming conflicts
+- Replaced sleep-polling loops with `ConditionVariable` (update handler) and `Concurrent::Event` (search index wait)
+- Replaced `Array` + `Mutex` delta queue with thread-safe `Thread::Queue`
+- Extracted JSON:API formatting, authorization utils, and query validation into separate modules
+- Refactored property handling to consistently use `PropertyDefinition` objects
+
+## v0.11.0
+**Features**
+- Connection pooling with configurable connection pool size for requests to
+  - Tika
+  - Elasticsearch
+  - triplestore
+- mu-cli script to manage indexes
+- Make max yaml size configurable via MAX_YAML_SIZE env var
+- Experimental support for ignoring and dynamic allowed groups
 
 ## v0.10.0
 **Fixes**

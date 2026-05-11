@@ -16,7 +16,10 @@ module MuSearch
         eager_indexing_groups: [],
         update_wait_interval_minutes: 1,
         number_of_threads: 1,
-        enable_raw_dsl_endpoint: false
+        enable_raw_dsl_endpoint: false,
+        prefixes: {},
+        connection_pool_size: 20,
+        delta_batch_size: 100,
       }
 
       json_config = JSON.parse(File.read(path))
@@ -33,7 +36,9 @@ module MuSearch
         { name: "attachments_path_base", parser: :parse_string },
         { name: "common_terms_cutoff_frequency", parser: :parse_float },
         { name: "update_wait_interval_minutes", parser: :parse_float },
-        { name: "number_of_threads", parser: :parse_integer }
+        { name: "number_of_threads", parser: :parse_integer },
+        { name: "connection_pool_size", parser: :parse_integer },
+        { name: "delta_batch_size", parser: :parse_integer }
       ].each do |setting|
         name = setting[:name]
         value = self.send(setting[:parser], ENV[name.upcase], json_config[name])
@@ -48,7 +53,9 @@ module MuSearch
         config[:eager_indexing_groups] = json_config["eager_indexing_groups"]
       end
       config[:ignored_allowed_groups] = json_config["ignored_allowed_groups"] || []
-      config[:type_definitions] = Hash[MuSearch::IndexDefinition.from_json_config(json_config["types"])]
+      config[:prefixes] = json_config["prefixes"] || {}
+      config[:type_definitions] = Hash[MuSearch::IndexDefinition.from_json_config(json_config["types"], config[:prefixes])]
+
       config
     end
 
@@ -119,6 +126,9 @@ module MuSearch
       end
       if json_config.has_key?("ignored_allowed_groups")
         errors = errors.concat(self.validate_ignored_allowed_groups(json_config["ignored_allowed_groups"]))
+      end
+      if json_config.has_key?("prefixes")
+        errors = errors.concat(self.validate_prefixes(json_config["prefixes"]))
       end
       if errors.length > 0
         Mu::log.error("CONFIG_PARSER") { errors.join("\n") }
@@ -240,6 +250,29 @@ module MuSearch
         end
       end
 
+      errors
+    end
+
+    def self.validate_prefixes(prefixes)
+      errors = []
+      if ! prefixes.kind_of?(Hash)
+        errors << "prefixes should be an object mapping prefix names to URIs"
+      else
+        prefixes.each do |prefix, uri|
+          if ! prefix.kind_of?(String)
+            errors << "prefix name should be a string: #{prefix.inspect}"
+          end
+          if ! uri.kind_of?(String)
+            errors << "prefix URI should be a string: #{uri.inspect}"
+          else
+            begin
+              parsed_uri = URI.parse(uri)
+            rescue URI::InvalidURIError => e
+              errors << "prefix URI '#{uri}' is not a valid URI: #{e.message}"
+            end
+          end
+        end
+      end
       errors
     end
   end

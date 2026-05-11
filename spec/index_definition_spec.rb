@@ -6,7 +6,7 @@ RSpec.describe MuSearch::CompositeSubIndexDefinition do
     id = MuSearch::CompositeSubIndexDefinition.new(
       name: "test",
       rdf_type: "http://test.com/Test",
-      properties: {}
+      properties: []
     )
   end
 end
@@ -128,9 +128,10 @@ RSpec.describe MuSearch::IndexDefinition do
           composite_index = subject.select{ |name, index| index.is_composite_index?}[0][1]
           sub_indexes = composite_index.composite_types
           expect(sub_indexes[0]).to be_a MuSearch::CompositeSubIndexDefinition
-          expect(sub_indexes[0].properties).to be_a Hash
-          expect(sub_indexes[0].properties).to have_key("given_name")
-          expect(sub_indexes[0].properties["given_name"]).to be_a Array
+          expect(sub_indexes[0].properties).to be_a Array
+          given_name_prop = sub_indexes[0].properties.find { |p| p.name == "given_name" }
+          expect(given_name_prop).to be_a MuSearch::PropertyDefinition
+          expect(given_name_prop.path).to be_a Array
         end
       end
     end

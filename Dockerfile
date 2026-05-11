@@ -1,4 +1,4 @@
-FROM semtech/mu-jruby-template:3.2.0
+FROM semtech/mu-jruby-template:3.2.1
 
 LABEL maintainer="redpencil <info@redpencil.io>"
 
