@@ -1,6 +1,10 @@
 # Changelog
 ## Unreleased
 
+## v0.12.1
+**Fixes**
+- correctly store uuid for nested documents
+
 ## v0.12.0
 **Features**
 - Support for Elasticsearch 9.2.0 (via elasticsearch gem 9.x)
