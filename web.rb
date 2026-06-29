@@ -145,6 +145,17 @@ configure do
   set :delta_handler, delta_handler
 
   MuSearch::Metrics.setup
+  if Dir.exist?("/data")
+    unexpected = Dir.children("/data").reject { |f| f == "update-handler.store" }
+    unless unexpected.empty?
+      Mu::log.warn("SETUP") do
+        "Unexpected entries found in /data: #{unexpected.join(", ")}. " \
+        "Since v0.13.0, /data is reserved for the update-handler store. " \
+        "Files for the attachment pipeline should be mounted at /share instead of /data. " \
+        "See the CHANGELOG for migration instructions."
+      end
+    end
+  end
 end
 
 ###
