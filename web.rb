@@ -17,7 +17,12 @@ require_relative 'lib/mu_search/tika.rb'
 require_relative 'framework/elastic_query_builder.rb'
 require_relative 'lib/mu_search/json_api.rb'
 require_relative 'lib/mu_search/query_validator.rb'
+require_relative 'lib/bounded_concurrency_middleware.rb'
 
+max_concurrent_requests = ENV["MAX_CONCURRENT_REQUESTS"].to_i > 0 ? ENV["MAX_CONCURRENT_REQUESTS"].to_i : 20
+max_waiting_requests = ENV["MAX_WAITING_REQUESTS"].to_i > 0 ? ENV["MAX_WAITING_REQUESTS"].to_i : 20
+
+use BoundedConcurrencyMiddleware, max_threads: max_concurrent_requests, max_queue: max_waiting_requests
 ##
 # WEBrick setup
 ##
