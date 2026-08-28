@@ -47,18 +47,38 @@ class ElasticQueryBuilder
   def build_filter
     if @filter && !@filter.empty?
       filters = @filter.map { |key, value| construct_es_query_term key, value }
-      if filters.length == 1
-        @es_query["query"] = filters.first
-      else
-        @es_query["query"] =
-          {
-            bool: {
-              must: filters
-            }
-          }
-      end
+      postprocess_filters(filters)
     end
     self
+  end
+
+  # Post-processes the filters for taking into account special cases that have 
+  # an impact on the entire resulting query (e.g. single filter and knn filters
+  # with additional filters, which should be pre-filtered instead of post-filtered)
+  def postprocess_filters(filters)
+    knn_matcher_lambda = ->(item) { item.key?(:knn) } 
+    if filters.length == 1
+      @es_query["query"] = filters.first
+    elsif filters.any?(&knn_matcher_lambda)
+      # need to ensure our OTHER filters are pre-filtered (i.e. before applying knn)
+      # otherwise we might reject all valid candidates after doing knn search
+      # while there ARE less similar candidates that could match the filters
+      knn_filter = filters.select(&knn_matcher_lambda)[0]
+      other_filters = filters.reject(&knn_matcher_lambda)
+      pre_filter = other_filters
+      if other_filters.length == 1
+        pre_filter = other_filters[0]
+      end
+      knn_filter[:knn]["filter"] = pre_filter
+      @es_query["query"] = knn_filter
+    else
+      @es_query["query"] =
+        {
+          bool: {
+            must: filters
+          }
+        }
+    end
   end
 
   # Converts a param like "sort[:mode:field]=order"
