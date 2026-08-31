@@ -183,6 +183,28 @@ class ElasticQueryBuilder
           terms: { field => value.split(",") }
         }
       end
+    when "geo"
+      ensure_single_field_for flag, fields do |field|
+        query = value.split(",") # e.g: filter[:geo:address_geometry_coord]=51.15127431356903,4.1428169744346235,100km
+        x_lambert = query[0].to_f
+        y_lambert = query[1].to_f
+        output = `echo "#{x_lambert} #{y_lambert}" | gdaltransform -s_srs EPSG:31370 -t_srs EPSG:4326`
+        lon, lat, _ = output.split(' ')
+        distance = query[2]
+        {
+           bool: {
+              filter: {
+                geo_distance: {
+                  distance: distance,
+                  field => {
+                      lat: lat.to_f,
+                      lon: lon.to_f
+                  }
+                }
+              }
+            }
+        }
+      end
     when "fuzzy_phrase"
       ensure_single_field_for flag, fields do |field|
         clauses = value.split(" ").map do |word|
