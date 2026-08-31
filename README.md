@@ -22,19 +22,12 @@ services:
       - ./config/search:/config
       - ./data/search:/data
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.3.0
+    image: semtech/mu-search-elastic-backend:1.3.1
+    volumes:
+      - ./data/elasticsearch/:/usr/share/elasticsearch/data
     environment:
       - discovery.type=single-node
-volumes:
-  elasticsearch-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/data/elasticsearch
 ```
-
-Note: You'll notice we're using a named volume with a local bind here rather than a direct bind mount (e.g. `./data/elasticsearch:/usr/share/elasticsearch/data`) . Elasticsearch doesn't run as root in its container, so a direct bind mount will fail with permission errors. The named volume lets Docker handle permissions correctly. The host directory must exist before starting, so you need to add the directory to your app's git repo with a .gitkeep file. If you prefer a direct bind mount instead, you can still do that as well but you'll need to set 777 permissions on the directory.
 
 The indices will be persisted in `./data/elasticsearch`. The `search` service needs to be linked to an instance of the [mu-authorization](https://github.com/mu-semtech/mu-authorization) service.
 
@@ -97,7 +90,7 @@ First, make sure the search indexes are written to a mounted volume by specifyin
 ```yml
 services:
   elasticsearch:
-    image: semtech/mu-search-elastic-backend:1.2.0
+    image: semtech/mu-search-elastic-backend:1.3.1
     volumes:
       - ./data/elasticsearch/:/usr/share/elasticsearch/data
 ```
