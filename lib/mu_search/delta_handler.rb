@@ -12,6 +12,7 @@ module MuSearch
   class DeltaHandler
     RDF_TYPE_PREDICATE = RDF.type.to_s.freeze
     DEFAULT_DELTA_BATCH_SIZE = 100
+    attr_reader :queue
 
     ##
     # creates a delta handler
@@ -51,6 +52,7 @@ module MuSearch
     # Parses the given delta and adds it to the queue to trigger the update of affected documents
     # Assumes delta format v0.0.1
     def handle_deltas(deltas)
+      MuSearch::Metrics.increment_deltas_received if defined?(MuSearch::Metrics)
       @logger.debug("DELTA") { "Received delta update #{deltas.pretty_inspect}" }
       if deltas.is_a?(Array)
         @logger.debug("DELTA") { "Delta contains #{deltas.length} changesets" }
