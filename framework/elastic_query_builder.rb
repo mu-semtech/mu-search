@@ -47,18 +47,46 @@ class ElasticQueryBuilder
   def build_filter
     if @filter && !@filter.empty?
       filters = @filter.map { |key, value| construct_es_query_term key, value }
-      if filters.length == 1
-        @es_query["query"] = filters.first
-      else
-        @es_query["query"] =
-          {
-            bool: {
-              must: filters
-            }
-          }
-      end
+      postprocess_filters(filters)
     end
     self
+  end
+
+  # Post-processes the filters for taking into account special cases that have 
+  # an impact on the entire resulting query (e.g. single filter and knn filters
+  # with additional filters, which should be pre-filtered instead of post-filtered)
+  def postprocess_filters(filters)
+    knn_matcher_lambda = ->(item) { item.key?(:knn) } 
+    if filters.length == 1
+      @es_query["query"] = filters.first
+    elsif filters.any?(&knn_matcher_lambda)
+      # need to ensure our OTHER filters are pre-filtered (i.e. before applying knn)
+      # otherwise we might reject all valid candidates after doing knn search
+      # while there ARE less similar candidates that could match the filters
+      # see: https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-knn-query#knn-query-filtering
+      knn_filters = filters.select(&knn_matcher_lambda)
+      if knn_filters.length > 1
+        # though in theory, elastic does support adding another knn filter as a pre-filter, 
+        # this would turn this function into something recursive. Is it worth the effort
+        raise ArgumentError, "Currently, only one embedding filter at a time is supported"
+      end
+
+      knn_filter = knn_filters[0]
+      other_filters = filters.reject(&knn_matcher_lambda)
+      pre_filter = other_filters
+      if other_filters.length == 1
+        pre_filter = other_filters[0]
+      end
+      knn_filter[:knn]["filter"] = pre_filter
+      @es_query["query"] = knn_filter
+    else
+      @es_query["query"] =
+        {
+          bool: {
+            must: filters
+          }
+        }
+    end
   end
 
   # Converts a param like "sort[:mode:field]=order"
@@ -124,20 +152,20 @@ class ElasticQueryBuilder
   # Excludes fields containing file contents
   # from the _source field in the search results
   def build_source_fields
-    excludes = collect_attachment_fields(@type_def.properties)
+    excludes = collect_fields_excluded_in_source(@type_def.properties)
     unless excludes.empty?
       @es_query["_source"] = { excludes: excludes }
     end
     self
   end
 
-  def collect_attachment_fields(properties, prefix = nil)
+  def collect_fields_excluded_in_source(properties, prefix = nil)
     properties.flat_map do |prop|
       field_name = prefix ? "#{prefix}.#{prop.name}" : prop.name
-      if prop.type == "attachment"
+      if prop.type == "attachment" or prop.type == "dense-vector"
         [field_name]
       elsif prop.type == "nested" && prop.sub_properties
-        collect_attachment_fields(prop.sub_properties, field_name)
+        collect_fields_excluded_in_source(prop.sub_properties, field_name)
       else
         []
       end
@@ -175,6 +203,36 @@ class ElasticQueryBuilder
       ensure_single_field_for flag, fields do |field|
         {
           flag => { field => value }
+        }
+      end
+    when /embedding(,[0-9]+){,2}/
+      ensure_single_field_for "embedding", fields do |field|
+        flag, k_input, num_candidates_input = flag.split(",")
+        params = value
+        k = 10
+        num_candidates = k*2
+        if k_input
+          k = k_input.to_i
+        end
+        if num_candidates_input
+          num_candidates = num_candidates_input.to_i
+        end
+        target_vector = value
+        
+        if k < 1
+          raise ArgumentError, "k in embedding search must be larger than 0"
+        end
+        if k > num_candidates
+          raise ArgumentError, "k in embedding search must be smaller than num_candidates"
+        end
+        vector = target_vector.split(",").map { |v| v.to_f }
+        {
+          "knn": {
+            "field": field,
+            "query_vector": vector,
+            "k": k,
+            "num_candidates": num_candidates
+          },
         }
       end
     when "terms"
