@@ -63,6 +63,7 @@ class ElasticQueryBuilder
       # need to ensure our OTHER filters are pre-filtered (i.e. before applying knn)
       # otherwise we might reject all valid candidates after doing knn search
       # while there ARE less similar candidates that could match the filters
+      # see: https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-knn-query#knn-query-filtering
       knn_filter = filters.select(&knn_matcher_lambda)[0]
       other_filters = filters.reject(&knn_matcher_lambda)
       pre_filter = other_filters
