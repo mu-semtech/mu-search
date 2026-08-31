@@ -671,7 +671,10 @@ For example:
       "properties": {
         "embedding": {
           "via": "http://mu.semte.ch/vocabularies/ext/embeddingVector",
-          "type": "dense-vector"
+          "type": "dense-vector",
+          "chunking_predicate": "http://mu.semte.ch/vocabularies/ext/hasChunkedValues",
+          "index_predicate": "http://mu.semte.ch/vocabularies/ext/mainListIndex",
+          "null_vector_uri": "http://mu.semte.ch/vocabularies/ext/embeddingVector/null"
         }
       },
       "mappings": {
@@ -688,11 +691,11 @@ For example:
 }
 ```
 
-Embedding vectors can be quite large and triplestores can run into problems when storing such large strings. This is why mu-search expects the embedding vectors to be stored in chunks as a linked list. This list should be stored using the predicate `http://mu.semte.ch/vocabularies/ext/hasChunkedValues`. For easy sorting of these chunks, every part of this list should also refer to its index using the predicate `http://mu.semte.ch/vocabularies/ext/mainListIndex`. Chunk size is not enforced by mu-search, we found that 50 values per chunk is a decent size.
+Embedding vectors can be quite large and triplestores can run into problems when storing such large strings. This is why mu-search expects the embedding vectors to be stored in chunks as a linked list. This list should be stored using the predicate in `chunking_predicate`, defaults to `http://mu.semte.ch/vocabularies/ext/hasChunkedValues`. For easy sorting of these chunks, every part of this list should also refer to its index using the predicate in `list_index_predicate`, defaults to `http://mu.semte.ch/vocabularies/ext/mainListIndex` . Chunk size is not enforced by mu-search, we found that 50 values per chunk is a decent size.
 
 Remember that all embedding vectors should be constructed in the same way and should be the same size. This also goes for the target vector when searching using the `:embedding` search. Embeddings can be generated using the [embedding-service](https://github.com/semantic-ai/embedding-service).
 
-An instance can be explicitly marked as having no embedding vector by providing the value `http://mu.semte.ch/vocabularies/ext/embeddingVector/null`, those values will be ignored. This helps services like the embedding-service to mark instances that can't receive embeddings as processed.
+An instance can be explicitly marked as having no embedding vector by providing the value of `null_vector_uri`, defaults to `http://mu.semte.ch/vocabularies/ext/embeddingVector/null`, those values will be ignored. This helps services like the embedding-service to mark instances that can't receive embeddings as processed.
 
 Example data holding embeddings for an instance could be:
 
@@ -719,6 +722,8 @@ Example data holding embeddings for an instance could be:
 Elastic does not allow multiple values for a dense_vector property. Because of this, if multiple values are detected for a dense_vector property, they are averaged and normalized when they are added into the elastic instance.
 
 note: not all chunks of this vector will have the same length. Often only the final chunk will be shorter, but in theory chunks can be of varying length.
+
+important: the vectors themselves are assumed to be immutable AND they are assumed to exist before the link to the vector is made (so that mu-search doesn't index a missing vector between the link creation and the vector creation). It is fine to update the vector itself, but the new vector should be represented by a new URI.
 
 ##### [Experimental] Composite types
 

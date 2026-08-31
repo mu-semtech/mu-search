@@ -126,7 +126,7 @@ SPARQL
         elsif definition.type == "nested"
           index_value = build_nested_object(matching_values, definition.sub_properties)
         elsif definition.type == "dense-vector"
-          index_value = build_vector_dense_property(matching_values)
+          index_value = build_vector_dense_property(matching_values, definition)
         else
           raise "Unsupported property type #{definition.type} for property #{definition.name}. Property will not be handled by the document builder"
         end
@@ -164,17 +164,20 @@ SPARQL
       end
     end
 
-    def build_vector_dense_property( values )
+    def build_vector_dense_property( values, definition )
       if values && values.length > 1
         @logger.debug("EMBED") { "multiple embeddings found for #{values[0]}, elastic doesn't allow this. averaging the values for storage"}
       end
+      chunking_predicate = definition.chunking_predicate or "http://mu.semte.ch/vocabularies/ext/hasChunkedValues"
+      index_predicate = definition.list_index_predicate or "http://mu.semte.ch/vocabularies/ext/mainListIndex"
+      null_vector_uri = definition.null_vector or "http://mu.semte.ch/vocabularies/ext/embeddingVector/null"
       vector_values = build_simple_property( values ).collect do |value|
 
         @logger.debug("EMBED") { "building embedding for #{value}" }
         # value is the uri of an embedding vector whose value is contained in a linked list of chunks
-        # it can also be the special uri http://mu.semte.ch/vocabularies/ext/embeddingVector/null that makes it
-        # explicit that no embedding could be created
-        if not value or value == "http://mu.semte.ch/vocabularies/ext/embeddingVector/null"
+        # it can also be the special uri http://mu.semte.ch/vocabularies/ext/embeddingVector/null (configurable) 
+        # that makes it explicit that no embedding could be created
+        if not value or value == null_vector_uri
           nil
         else
           query = <<SPARQL
@@ -184,11 +187,11 @@ SPARQL
           SELECT ?value ?index
           WHERE {
           {
-            <#{value}> ext:hasChunkedValues / rdf:rest* ?node .
+            #{Mu::sparql_escape_uri(value)} #{Mu::sparql_escape_uri(chunking_predicate)} / rdf:rest* ?node .
             ?node rdf:first ?value .
-            ?node ext:mainListIndex ?index .
+            ?node #{Mu::sparql_escape_uri(index_predicate)} ?index .
           }
-        } ORDER BY ?index
+        } ORDER BY xsd:integer(?index)
 SPARQL
 
           chunks_result = @sparql_client.query(query)
