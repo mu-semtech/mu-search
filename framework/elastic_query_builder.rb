@@ -64,7 +64,14 @@ class ElasticQueryBuilder
       # otherwise we might reject all valid candidates after doing knn search
       # while there ARE less similar candidates that could match the filters
       # see: https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-knn-query#knn-query-filtering
-      knn_filter = filters.select(&knn_matcher_lambda)[0]
+      knn_filters = filters.select(&knn_matcher_lambda)
+      if knn_filters.length > 1
+        # though in theory, elastic does support adding another knn filter as a pre-filter, 
+        # this would turn this function into something recursive. Is it worth the effort
+        raise ArgumentError, "Currently, only one embedding filter at a time is supported"
+      end
+
+      knn_filter = knn_filters[0]
       other_filters = filters.reject(&knn_matcher_lambda)
       pre_filter = other_filters
       if other_filters.length == 1

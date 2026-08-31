@@ -1113,6 +1113,8 @@ The following sections list the flags that are currently implemented:
 
 - `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense-vector` field. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. Optionally, you can prefix the vector by integer values for `k` (the number of closest matches, default 3) and `num_candidates` (the number of rough close matches to consider, default 20). An example search would be `filter[:embedding:description-vector]=2:10:0.1,-0.3,0.8`
 
+Only a single :embedding: filter is supported at a time.
+
 ###### Custom queries
 
 - `:fuzzy_phrase:` : A fuzzy phrase query based on [span_near](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-near-query.html) and [span_multi](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-span-multi-term-query.html). See also [this](https://stackoverflow.com/questions/38816955/elasticsearch-fuzzy-phrases) Stack Overflow issue or [the code](./framework/elastic_query_builder.rb).
