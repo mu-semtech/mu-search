@@ -1111,7 +1111,9 @@ The following sections list the flags that are currently implemented:
 
 ###### Vector-based queries
 
-- `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense-vector` field. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. Optionally, you can prefix the vector by integer values for `k` (the number of closest matches, default 3) and `num_candidates` (the number of rough close matches to consider, default 20). An example search would be `filter[:embedding:description-vector]=2:10:0.1,-0.3,0.8`
+- `:embedding:` [Dense vector kNN search](https://www.elastic.co/docs/solutions/search/vector/knn). This requires the field that is being searched on to be a `dense-vector` field. The flag takes additional options `k` (the number of closest matches, default 10 = the default page size) and `num_candidates` (the number of rough close matches to consider, default 20) appended with commas such as `:embedding,{k},{num_candidates}:{field}`. It accepts the target vector to search for as a comma separated set of float values and returns the k nearest neighbors in the elastic index based on cosine similarity. An example search would be `filter[:embedding,2,10:description-vector]=0.1,-0.3,0.8`.
+
+Note: k limits the number of matches found. This means that you cannot page beyond the number of matches restricted in this way. Asking for a page size or offset larger than k is futile.
 
 Only a single :embedding: filter is supported at a time.
 

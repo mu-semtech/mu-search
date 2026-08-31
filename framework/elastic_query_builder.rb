@@ -152,20 +152,20 @@ class ElasticQueryBuilder
   # Excludes fields containing file contents
   # from the _source field in the search results
   def build_source_fields
-    excludes = collect_attachment_fields(@type_def.properties)
+    excludes = collect_fields_excluded_in_source(@type_def.properties)
     unless excludes.empty?
       @es_query["_source"] = { excludes: excludes }
     end
     self
   end
 
-  def collect_attachment_fields(properties, prefix = nil)
+  def collect_fields_excluded_in_source(properties, prefix = nil)
     properties.flat_map do |prop|
       field_name = prefix ? "#{prefix}.#{prop.name}" : prop.name
-      if prop.type == "attachment"
+      if prop.type == "attachment" or prop.type == "dense-vector"
         [field_name]
       elsif prop.type == "nested" && prop.sub_properties
-        collect_attachment_fields(prop.sub_properties, field_name)
+        collect_fields_excluded_in_source(prop.sub_properties, field_name)
       else
         []
       end
@@ -205,19 +205,25 @@ class ElasticQueryBuilder
           flag => { field => value }
         }
       end
-    when "embedding"
-      ensure_single_field_for flag, fields do |field|
-        params = value.split(":")
-        k = 3
-        num_candidates = 20
-        if params.length === 3
-          k = params[0].to_i
-          num_candidates = params[1].to_i
-          target_vector = params[2]
-        elsif params.length === 1
-          target_vector = params[0]
-        else
-          raise ArgumentError, "Expected either 1 or 3 colon-separated values for embedding value but received #{value}"
+    when /embedding(,[0-9]+){,2}/
+      ensure_single_field_for "embedding", fields do |field|
+        flag, k_input, num_candidates_input = flag.split(",")
+        params = value
+        k = 10
+        num_candidates = k*2
+        if k_input
+          k = k_input.to_i
+        end
+        if num_candidates_input
+          num_candidates = num_candidates_input.to_i
+        end
+        target_vector = value
+        
+        if k < 1
+          raise ArgumentError, "k in embedding search must be larger than 0"
+        end
+        if k > num_candidates
+          raise ArgumentError, "k in embedding search must be smaller than num_candidates"
         end
         vector = target_vector.split(",").map { |v| v.to_f }
         {
